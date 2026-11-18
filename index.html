@@ -1,0 +1,1074 @@
+<!doctype html><html lang="ko"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><title>HR Control Tower Live</title><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<style>
+/* Layout: 상단 KPI → [허브 다이어그램 | 결정 인박스] → [활동 로그 | 환산·원칙]. 기존 Control Room 토큰(navy/teal/amber) 계승 */
+:root {
+  --canvas: #f4f6f8; --paper: #ffffff; --ink: #17212b; --muted: #687684; --line: #e4e9ed; --faint: #eef1f4;
+  --navy: #173247; --navy-ink: #ffffff; --teal: #0f766e; --teal-soft: #e5f4f1;
+  --amber: #a35b11; --amber-soft: #fff3df; --red: #b33d45; --red-soft: #fff0f0; --blue: #3f69a8; --blue-soft: #edf3fc;
+  --packet: #7f95ad;
+  --font: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0e141a; --paper: #151d25; --ink: #e6ecf1; --muted: #93a2b0; --line: #26313c; --faint: #1c2630;
+    --navy: #cfe0ee; --navy-ink: #0e141a; --teal: #4fc1b3; --teal-soft: #13302d;
+    --amber: #e9a95a; --amber-soft: #33240f; --red: #f08a90; --red-soft: #3a1c1f; --blue: #8fb0e3; --blue-soft: #1a2638;
+    --packet: #6d8299; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --canvas: #0e141a; --paper: #151d25; --ink: #e6ecf1; --muted: #93a2b0; --line: #26313c; --faint: #1c2630;
+  --navy: #cfe0ee; --navy-ink: #0e141a; --teal: #4fc1b3; --teal-soft: #13302d;
+  --amber: #e9a95a; --amber-soft: #33240f; --red: #f08a90; --red-soft: #3a1c1f; --blue: #8fb0e3; --blue-soft: #1a2638;
+  --packet: #6d8299; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--canvas); color: var(--ink); font: 14px/1.55 var(--font); }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 24px 20px 56px; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* header */
+.head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.eyebrow { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+h1 { margin: 6px 0 4px; font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -.045em; line-height: 1.15; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 64ch; }
+.lede b { color: var(--ink); }
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.clock { font: 700 28px/1 var(--mono); letter-spacing: -.03em; padding-right: 6px; font-variant-numeric: tabular-nums; }
+.btn { border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 650; }
+.btn:hover { background: var(--faint); }
+.btn[aria-pressed="true"] { background: var(--navy); color: var(--navy-ink); border-color: var(--navy); }
+.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); padding: 0 4px; cursor: pointer; }
+.demo-note { margin: 14px 0 0; font-size: 12px; color: var(--amber); background: var(--amber-soft); padding: 8px 12px; border-radius: 8px; }
+
+/* KPI */
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+.kpi { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.kpi span { display: block; color: var(--muted); font-size: 12px; }
+.kpi b { display: block; font-size: 26px; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.kpi small { color: var(--muted); font-size: 11px; }
+.kpi.hero { background: var(--navy); border-color: var(--navy); color: var(--navy-ink); }
+.kpi.hero span, .kpi.hero small { color: inherit; opacity: .75; }
+.kpi.warn b { color: var(--amber); }
+
+/* main grid */
+.main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.panel-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 14px 16px 0; }
+.panel-h h2 { margin: 0; font-size: 15px; letter-spacing: -.02em; }
+.panel-h small { color: var(--muted); font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 16px 0; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+svg.hub { display: block; width: 100%; height: auto; }
+.hub .spoke { stroke: var(--line); stroke-width: 1.5; }
+.hub .spoke-p { stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 4 4; }
+.hub .c-core { fill: var(--navy); }
+.hub .c-core-t { fill: var(--navy-ink); font-weight: 750; font-size: 14px; }
+.hub .c-core-s { fill: var(--navy-ink); font-size: 10px; opacity: .8; }
+.hub .agent { fill: var(--paper); stroke: var(--teal); stroke-width: 2; transition: stroke .3s; }
+.hub .agent-g.waiting .agent { stroke: var(--amber); stroke-width: 3; }
+.hub .agent-g.waiting .halo { opacity: 1; }
+.hub .halo { fill: none; stroke: var(--amber); stroke-width: 2; opacity: 0; }
+.hub .agent-g.waiting .halo { animation: pulse 1.6s ease-out infinite; }
+@keyframes pulse { from { r: 36; opacity: .9; } to { r: 50; opacity: 0; } }
+.hub .a-ic { fill: var(--teal); font-size: 12px; font-weight: 800; }
+.hub .agent-g.waiting .a-ic { fill: var(--amber); }
+.hub .a-n { fill: var(--ink); font-size: 16px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.hub .lbl { fill: var(--ink); font-size: 12px; font-weight: 700; }
+.hub .lbl-s { fill: var(--muted); font-size: 10.5px; }
+.hub .partner { fill: var(--faint); stroke: var(--line); }
+.hub .p-t { fill: var(--muted); font-size: 10.5px; font-weight: 650; }
+.hub .flash .partner { fill: var(--blue-soft); stroke: var(--blue); }
+
+/* inbox */
+.inbox { padding: 12px 16px 16px; display: grid; gap: 10px; }
+.empty { border: 1px dashed var(--line); border-radius: 12px; padding: 22px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+.empty b { display: block; color: var(--teal); font-size: 14px; margin-bottom: 2px; }
+.card { border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: 10px; padding: 12px 14px; background: var(--paper); animation: slidein .35s ease-out; }
+.card.high { border-left-color: var(--red); }
+@keyframes slidein { from { transform: translateY(-6px); opacity: .3; } to { transform: none; opacity: 1; } }
+.card-top { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--muted); }
+.chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.chip.risk-medium { background: var(--amber-soft); color: var(--amber); }
+.chip.risk-high { background: var(--red-soft); color: var(--red); }
+.chip.risk-low { background: var(--teal-soft); color: var(--teal); }
+.card h3 { margin: 6px 0 6px; font-size: 14.5px; line-height: 1.4; letter-spacing: -.01em; text-wrap: balance; }
+.card ul { margin: 0 0 8px; padding-left: 16px; color: var(--muted); font-size: 12.5px; }
+.rec { font-size: 12.5px; background: var(--teal-soft); color: var(--teal); padding: 7px 10px; border-radius: 8px; }
+.rec b { font-weight: 750; }
+.acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.acts button { border-radius: 8px; padding: 7px 11px; font-size: 12.5px; font-weight: 700; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+.acts button.primary { background: var(--teal); border-color: var(--teal); color: var(--paper); }
+.acts button.hold { color: var(--muted); margin-left: auto; }
+.acts button:hover { filter: brightness(.96); }
+.wait { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* bottom */
+.lower { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
+.log { list-style: none; margin: 0; padding: 8px 16px 12px; max-height: 360px; overflow-y: auto; }
+.log li { border-bottom: 1px solid var(--faint); }
+.log li:last-child { border-bottom: 0; }
+.row { display: grid; grid-template-columns: 44px 124px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; width: 100%; padding: 7px 6px; margin: 0 -6px; border: 0; border-radius: 6px; background: none; color: inherit; text-align: left; font-size: 12.5px; }
+.row:hover { background: var(--faint); }
+.row .chev { display: none; }
+.row > span:nth-child(3) { min-width: 0; }
+.row .t { font-family: var(--mono); color: var(--muted); font-size: 11.5px; }
+.row .who { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag { font-size: 10.5px; font-weight: 750; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.tag.auto { background: var(--faint); color: var(--muted); }
+.tag.partner { background: var(--blue-soft); color: var(--blue); }
+.tag.ask { background: var(--amber-soft); color: var(--amber); }
+.tag.ok { background: var(--teal-soft); color: var(--teal); }
+.tag.hold { background: var(--red-soft); color: var(--red); }
+.tag.pii { background: var(--navy); color: var(--navy-ink); }
+.tag.review { background: var(--blue-soft); color: var(--blue); }
+.tag.rework { background: var(--amber-soft); color: var(--amber); }
+.tag.learn { background: transparent; color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); }
+.card.review { border-left-color: var(--blue); }
+.card .out { font-size: 12.5px; color: var(--muted); margin-bottom: 2px; }
+.card .out b { color: var(--ink); }
+.acts button.link { border-color: transparent; color: var(--blue); background: none; margin-left: auto; }
+.acts button.rw { color: var(--amber); }
+.acts button.er { color: var(--red); }
+.adopt { margin-top: 16px; }
+.acts-link { border: 0; background: none; color: var(--blue); font: inherit; font-weight: 650; font-size: 12.5px; cursor: pointer; padding: 0 0 0 6px; }
+.stages { list-style: none; margin: 0; padding: 12px 16px 4px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; counter-reset: st; }
+.stages button { width: 100%; height: 100%; text-align: left; border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; }
+.stages button:hover { border-color: var(--blue); }
+.stages .n { font: 700 11px var(--mono); color: var(--muted); letter-spacing: .04em; }
+.stages .h { font-weight: 750; font-size: 14px; }
+.stages .v { font-size: 12.5px; color: var(--muted); }
+.stages .v b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.stages li:not(:last-child) button { position: relative; }
+.tbl-wrap { overflow-x: auto; padding: 8px 16px 0; }
+table.wt { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 860px; }
+.wt th { text-align: left; font-size: 11.5px; font-weight: 650; color: var(--muted); padding: 8px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.wt td { padding: 0; border-bottom: 1px solid var(--faint); }
+.wt tr:last-child td { border-bottom: 0; }
+.wt .num { text-align: right; font-variant-numeric: tabular-nums; }
+.wt tbody tr { cursor: pointer; }
+.wt tbody tr:hover { background: var(--faint); }
+.wt td > * { display: block; padding: 8px; }
+.wt .ttl b { display: block; font-weight: 650; }
+.wt .ttl small { color: var(--muted); }
+.wt tr.sep td { cursor: default; background: var(--canvas); font-size: 11.5px; font-weight: 700; color: var(--muted); padding: 6px 8px; }
+.wt tr.sep:hover { background: var(--canvas); }
+.wt tr.more-row td button { border: 0; background: none; color: var(--blue); font: inherit; font-weight: 650; padding: 8px; cursor: pointer; }
+.wt tr.more-row:hover { background: none; }
+.stg { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.stg.pilot { background: var(--blue-soft); color: var(--blue); }
+.stg.indep { background: var(--teal-soft); color: var(--teal); }
+.stg.backlog { background: var(--faint); color: var(--muted); }
+.gauge { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.gauge .bar { flex: 1; min-width: 60px; height: 6px; border-radius: 3px; background: var(--faint); overflow: hidden; }
+.gauge .bar i { display: block; height: 100%; background: var(--blue); }
+.gauge.ok .bar i { background: var(--teal); }
+.gauge small { color: var(--muted); font-size: 11px; }
+.defs { margin: 0; padding: 10px 16px 14px; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+.defs b { color: var(--ink); }
+.crit { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.crit li.ok { color: var(--teal); }
+.crit li.no { color: var(--muted); }
+.steps4 { list-style: none; margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; font-size: 11.5px; }
+.steps4 li { border-top: 3px solid var(--line); padding-top: 6px; color: var(--muted); }
+.steps4 li.done { border-color: var(--teal); color: var(--ink); }
+.steps4 li.cur { border-color: var(--blue); color: var(--ink); font-weight: 700; }
+.fb { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.fb li { padding: 6px 10px; background: var(--faint); border-radius: 6px; }
+.fb small { color: var(--muted); }
+.tag.mail { background: transparent; color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+.mail-prev { margin-top: 8px; font-size: 12.5px; }
+.mail-prev summary { cursor: pointer; color: var(--blue); font-weight: 650; padding: 4px 0; overflow-wrap: anywhere; }
+.mail { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 6px; background: var(--paper); }
+.mail-h { display: grid; gap: 3px; padding: 10px 12px; background: var(--faint); font-size: 12px; }
+.mail-h div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; overflow-wrap: anywhere; }
+.mail-h span { color: var(--muted); }
+.mail-b { margin: 0; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.6 var(--font); color: var(--ink); }
+.checks { list-style: none; margin: 0; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--teal); display: grid; gap: 2px; }
+.mail-st { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 700; }
+.mail-st.sent { color: var(--teal); }
+.mail-st.draft { color: var(--amber); }
+.mail-st.held { color: var(--red); }
+.hub .agent-g { cursor: pointer; }
+.hub .agent-g:hover .agent, .hub .agent-g:focus-visible .agent { fill: var(--teal-soft); }
+.hub .agent-g:focus { outline: none; }
+button.kpi { text-align: left; font: inherit; cursor: pointer; }
+button.kpi:hover { filter: brightness(1.08); }
+.kpi .more { text-decoration: underline; text-underline-offset: 2px; }
+button.kpi { color: var(--ink); }
+button.kpi.hero { color: var(--navy-ink); }
+.kpi .go { float: right; font-style: normal; font-size: 11px; color: var(--blue); }
+button.kpi:not(.hero):hover { border-color: var(--blue); filter: none; }
+.dr-sec .opts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dr-sec .opts li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.opts li.chosen { border-color: var(--teal); background: var(--teal-soft); color: var(--teal); font-weight: 700; }
+.opts li.held { border-color: var(--red); background: var(--red-soft); color: var(--red); font-weight: 700; }
+.opts small { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.dr-sec .tl { list-style: none; margin: 0 0 0 6px; padding: 0 0 0 16px; border-left: 2px solid var(--line); display: grid; gap: 10px; font-size: 13px; }
+.dr-sec .tl li { position: relative; padding: 0; }
+.dr-sec .tl li::before { content: ""; position: absolute; left: -20px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--paper); border: 2px solid var(--muted); }
+.tl li.t-ask::before { border-color: var(--amber); }
+.tl li.t-ok::before { border-color: var(--teal); background: var(--teal); }
+.tl li.t-mail::before { border-color: var(--blue); }
+.tl li.t-wait::before { border-color: var(--amber); border-style: dashed; }
+.tl .tt { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-right: 6px; }
+.hub .c-core { cursor: pointer; }
+.hub .c-core-t, .hub .c-core-s { pointer-events: none; }
+.hub .c-core:hover, .hub .c-core:focus-visible { stroke: var(--teal); stroke-width: 3; outline: none; }
+/* drawer */
+.scrim { position: fixed; inset: 0; background: rgba(10, 20, 30, .32); z-index: 20; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--paper); border-left: 1px solid var(--line); z-index: 21; display: flex; flex-direction: column; box-shadow: -12px 0 32px rgba(10, 20, 30, .12); padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.dr-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.dr-head .paused { font-size: 12px; color: var(--muted); margin-right: auto; }
+.dr-body { overflow-y: auto; padding: 18px 20px 28px; }
+.dr-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+.dr-body h2 { margin: 8px 0 16px; font-size: 19px; line-height: 1.35; letter-spacing: -.02em; text-wrap: balance; }
+.dr-sec { margin: 0 0 16px; }
+.dr-sec h4 { margin: 0 0 6px; font-size: 11.5px; font-weight: 750; letter-spacing: .06em; color: var(--muted); }
+.dr-sec ol, .dr-sec ul { margin: 0; padding-left: 20px; font-size: 13.5px; }
+.dr-sec ol li, .dr-sec ul li { padding: 2px 0; }
+.dr-sec p { margin: 0; font-size: 13.5px; }
+.srcs { display: flex; flex-wrap: wrap; gap: 6px; }
+.srcs span { font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; }
+.why { background: var(--teal-soft); color: var(--teal); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+.why.ask { background: var(--amber-soft); color: var(--amber); }
+.dr-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.dr-stats div { background: var(--faint); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--muted); }
+.dr-stats b { display: block; color: var(--ink); font-size: 16px; font-variant-numeric: tabular-nums; }
+.dr-list { list-style: none; margin: 0; padding: 0; }
+.dr-list li { border-bottom: 1px solid var(--faint); }
+.dr-list .row { grid-template-columns: 40px minmax(0, 1fr) auto; margin: 0; }
+.dr-list .row .who { display: none; }
+.dr-note { font-size: 12px; color: var(--muted); margin: 12px 0 0; }
+.side { display: grid; gap: 16px; }
+.rules { padding: 12px 16px 16px; display: grid; gap: 12px; font-size: 12.5px; }
+.rules h4 { margin: 0 0 4px; font-size: 12px; }
+.rules ul { margin: 0; padding-left: 16px; color: var(--muted); }
+.rules .r-ask h4 { color: var(--amber); }
+.rules .r-auto h4 { color: var(--teal); }
+.rules .r-pii h4 { color: var(--ink); }
+
+@media (max-width: 980px) {
+  .main, .lower { grid-template-columns: minmax(0, 1fr); }
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi.hero { grid-column: 1 / -1; }
+  .row { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .row .who { display: none; }
+  .clock { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; }
+  .hub .agent-g.waiting .halo { animation: none; opacity: .6; }
+}
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div>
+      <div class="eyebrow">Company · People Operations · Control Tower</div>
+      <h1>HR 컨트롤타워 1명, 에이전트 5개, 파트너 5곳</h1>
+      <p class="lede">반복 업무와 판단 지점을 나눕니다. 새 업무는 <b>현업과 작게 검증하고, 교육과 피드백으로 개선한 뒤</b>, 처리시간·재작업·오류·독립 수행률이 기준을 넘으면 독립 수행으로 전환합니다. 오른쪽 카드를 눌러 하루를 운영해 보세요.</p>
+    </div>
+    <div class="controls">
+      <span class="clock" id="clock" aria-live="off">10:15</span>
+      <button class="btn" id="play" aria-pressed="true">일시정지</button>
+      <button class="btn" id="speed" aria-pressed="false">4배속</button>
+      <label class="toggle" for="auto"><input type="checkbox" id="auto"> 추천대로 자동 결정</label>
+      <button class="btn" id="restart">처음부터</button>
+    </div>
+  </header>
+  <p class="demo-note">시뮬레이션 데모입니다. 인원은 참조번호(CO-KR-26-…)로만 표시되며, 모든 수치와 사례는 예시입니다. 실제 HR 시스템과 연결되어 있지 않습니다.</p>
+
+  <section class="kpis" aria-label="오늘의 지표">
+    <button type="button" class="kpi hero" id="k-done-btn"><span>에이전트가 처리한 업무</span><b id="k-done">0</b><small class="more">눌러서 전체 목록 보기</small></button>
+    <button type="button" class="kpi" data-open="decided"><span>사람의 결정 <em class="go">보기 ›</em></span><b id="k-dec">0</b><small>승인·보류·수정</small></button>
+    <button type="button" class="kpi" data-open="mail"><span>메일 발송 <em class="go">보기 ›</em></span><b id="k-mail">0</b><small id="k-mail-s">내부 자동 0 · 승인 후 0</small></button>
+    <button type="button" class="kpi warn" data-open="waiting"><span>사람 확인 대기 <em class="go">보기 ›</em></span><b id="k-wait">0</b><small id="k-wait-s">결정 0 · 검수 0</small></button>
+    <button type="button" class="kpi" data-open="pii"><span>인적 정보 분리 <em class="go">보기 ›</em></span><b id="k-pii">0</b><small>보안 시트로만 저장</small></button>
+  </section>
+
+  <div class="main">
+    <section class="panel" aria-label="운영 구조">
+      <div class="panel-h"><h2>운영 구조</h2><small>에이전트를 누르면 오늘 처리한 일을 볼 수 있습니다</small></div>
+      <div class="legend">
+        <span><i style="background:var(--packet)"></i>들어오는 요청</span>
+        <span><i style="background:var(--amber)"></i>사람에게 올림</span>
+        <span><i style="background:var(--teal)"></i>사람의 결정</span>
+        <span><i style="background:var(--blue)"></i>파트너 실행</span>
+      </div>
+      <svg class="hub" id="hub" viewBox="0 22 640 516" role="img" aria-label="중앙의 HR 컨트롤타워 1명을 5개 AI 에이전트가 둘러싸고, 각 에이전트 바깥에 외부 파트너가 연결된 구조도"></svg>
+    </section>
+
+    <section class="panel" aria-label="결정 인박스">
+      <div class="panel-h"><h2>사람 확인 인박스</h2><small id="inbox-sub">에이전트가 멈추고 묻는 곳</small></div>
+      <div class="legend"><span><i style="background:var(--amber)"></i>결정 · 판단 지점</span><span><i style="background:var(--blue)"></i>검수 · 파일럿과 샘플</span></div>
+      <div class="inbox" id="inbox" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <section class="panel adopt" aria-label="도입 단계와 측정">
+    <div class="panel-h"><h2>도입 단계와 측정</h2><small>단계나 업무를 누르면 근거가 열립니다</small></div>
+    <ol class="stages" id="stages"></ol>
+    <div class="tbl-wrap"><table class="wt">
+      <thead><tr><th>업무</th><th>단계</th><th class="num">오늘 처리</th><th class="num">평균 처리시간</th><th class="num">검수 누적</th><th class="num">재작업률</th><th class="num">오류율</th><th class="num">독립 수행률</th><th>전환 기준</th></tr></thead>
+      <tbody id="wt-body"></tbody></table></div>
+    <p class="defs"><b>측정 정의</b> · 처리시간: 요청 접수부터 완료까지(파일럿은 현업 검수 대기 포함) · 재작업률: 검수에서 수정 후 승인된 비율 · 오류율: 검수에서 반려된 비율 · 독립 수행률: 검수에서 수정 없이 통과한 비율 · 누적은 파일럿 시작 이후(예시 이력 포함)</p>
+  </section>
+
+  <div class="lower">
+    <section class="panel" aria-label="활동 로그">
+      <div class="panel-h"><h2>활동 로그</h2><small>항목을 누르면 상세 내용이 열립니다</small></div>
+      <ol class="log" id="log"></ol>
+    </section>
+    <div class="side">
+      <section class="panel" aria-label="운영 원칙">
+        <div class="panel-h"><h2>무엇이 사람에게 올라오나</h2></div>
+        <div class="rules">
+          <div class="r-auto"><h4>에이전트가 끝내는 일</h4><ul><li>체크리스트·문서 초안, 일정 조율, 문의 응답</li><li>승인된 템플릿 안의 내부 안내 메일 발송</li><li>급여 인풋 검증, 경비 대조, 데이터 대사</li><li>국가별 법·제도 모니터링과 리스크 신호 탐지</li></ul></div>
+          <div class="r-ask"><h4>사람에게 올리는 일</h4><ul><li>고용 형태, 보상 예외, 비자·계약 같은 고용 결정</li><li>파트너 계약 조건, 전사 공지</li><li>외부로 나가는 모든 메일 (초안은 에이전트, 발송은 승인 후)</li><li>계정 회수처럼 되돌리기 어려운 실행</li></ul></div>
+          <div class="r-pii"><h4>항상 지키는 것</h4><ul><li>인적 정보는 보안 시트에만 두고, 화면에는 참조번호만 표시</li><li>승인 1건당 실행 1회. 승인 없이는 외부로 나가지 않음</li><li>모든 메일은 인적 정보 검사를 거치고, 감사용 숨은참조를 넣어 발송</li></ul></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden role="dialog" aria-modal="true" aria-label="처리 상세">
+  <div class="dr-head"><button type="button" class="btn" id="dr-back" hidden>← 목록</button><span class="paused" id="dr-paused">시뮬레이션 일시정지 중</span><button type="button" class="btn" id="dr-close">닫기</button></div>
+  <div class="dr-body" id="dr-body"></div>
+</aside>
+
+<script>
+(() => {
+  // ───────── 데이터 ─────────
+  const AGENTS = [
+    { id: "on", ic: "ON", name: "온보딩 에이전트", sub: "입·퇴사 운영", partner: "IT·장비 벤더" },
+    { id: "rc", ic: "RC", name: "채용 운영 에이전트", sub: "파이프라인·인터뷰", partner: "서치펌 2곳" },
+    { id: "ge", ic: "GE", name: "글로벌 고용 에이전트", sub: "고용형태·비자", partner: "EOR 파트너 (SG·JP)" },
+    { id: "py", ic: "PY", name: "급여·데이터 에이전트", sub: "급여·보상·HR 데이터", partner: "급여 대행 · US PEO" },
+    { id: "lb", ic: "LB", name: "정책·노무 에이전트", sub: "정책 문서·노무 리스크", partner: "현지 노무 자문" },
+  ];
+  // ───────── 메일 ─────────
+  const FROM = "people-ops@company.com", AUDIT = "hr-audit@company.com";
+  // 내부 · 승인된 템플릿 → 자동 발송
+  const MAIL = {
+    onb: { to: "이번 주 입사자 2명 (내부)", subject: "[온보딩] 첫 주 AI 과제 3가지 안내",
+      body: "입사를 환영합니다.\n\n첫 주에는 아래 과제 3개를 진행해 주세요. 제출 기한은 입사 5일차입니다.\n\n1. Claude로 본인 업무 하나를 정리해 보기\n2. 팀 문서 하나를 요약하고 버디와 비교하기\n3. 반복 업무 하나를 골라 자동화 아이디어 적기\n\n막히는 부분은 버디에게 편하게 물어보세요.\n\nPeople Operations" },
+    remind: { to: "면접관 2명 (내부)", subject: "[리마인드] 면접 평가표 제출 부탁드립니다",
+      body: "안녕하세요.\n\n어제 진행한 Backend Engineer 면접의 평가표가 아직 제출되지 않았습니다. 다음 전형 일정을 정하기 위해 오늘 중 제출 부탁드립니다.\n\n평가표 위치: 채용 시스템 > 내 면접\n\nPeople Operations" },
+    expense: { to: "신청자 3명 (내부)", subject: "[경비] 보완이 필요한 청구 건 안내",
+      body: "안녕하세요.\n\n제출하신 경비 청구 중 아래 사유로 보완이 필요합니다.\n\n• 영수증 누락 또는 판독 불가\n• 정책 한도(1인 식대) 초과분의 사유 미기재\n\n경비 시스템의 해당 건에 보완 자료를 첨부해 주시면 다시 검토합니다.\n\nPeople Operations" },
+    leave: { to: "문의한 구성원 (내부)", subject: "Re: 연차 이월 문의",
+      body: "안녕하세요.\n\n문의하신 연차 이월은 연차 정책에 따라 아래와 같이 운영됩니다.\n\n• 미사용 연차는 다음 해로 최대 5일까지 이월할 수 있습니다\n• 이월된 연차는 해당 연도 6월 말까지 사용해야 합니다\n\n근거: 연차 정책 FAQ 3번\n개인 사정이 있으면 이 메일에 답장 주세요. 담당자가 직접 확인합니다.\n\nPeople Operations" },
+  };
+  // 결정별 메일 초안 → 사람이 승인해야 발송 (DECISIONS와 같은 순서)
+  const DMAIL = [
+    { ext: true, to: "onboarding@eor-partner.example", subject: "[Company] New hire request – BD Manager, Singapore (start 5 Nov)",
+      body: "Hi team,\n\nPlease open an employment request for the following hire under our EOR agreement.\n\n• Reference: CO-SG-26-001\n• Role: BD Manager\n• Start date: 5 Nov 2026\n• Compensation and personal details: shared via your secure upload link (not included in this email)\n\nCould you confirm the contract draft timeline and any work pass requirements?\n\nThanks,\nPeople Operations, Company" },
+    { ext: false, to: "recruiting@company.com (내부)", subject: "[오퍼 확정] Backend L4 — 밴드 상단 + 사이닝 보너스",
+      body: "오퍼 조건이 승인되었습니다.\n\n• 대상: 후보자 참조 RC-2026-114\n• 기본급: L4 밴드 상단\n• 차액: 사이닝 보너스로 보전 (금액은 보안 시트 참조)\n\n오퍼레터 확정본은 HR 드라이브에 올려 두었습니다. 후보자에게 보내기 전에 한 번 더 확인 부탁드립니다.\n\nPeople Operations" },
+    { ext: true, to: "visa@eor-partner.example", subject: "[Company] Work visa sponsorship request – Japan hire (CO-JP-26-003)",
+      body: "Hi team,\n\nWe'd like to proceed with visa sponsorship through your entity for our upcoming hire in Japan.\n\n• Reference: CO-JP-26-003\n• Expected processing: 6–8 weeks\n• Additional sponsorship fee (+$300/month): approved\n\nPlease share the document checklist for the candidate. Personal documents will go through your secure portal.\n\nBest,\nPeople Operations, Company" },
+    { ext: true, to: "orders@it-vendor.example", subject: "[장비 요청] 노트북 1대 싱가포르 발송 (CO-SG-26-001)",
+      body: "안녕하세요.\n\n아래 장비의 해외 발송을 요청드립니다.\n\n• 대상: CO-SG-26-001\n• 사양: 비엔지니어 직군 표준 (MDM 사전 설정)\n• 도착 희망일: 11/3 이전\n• 배송지: 보안 링크로 별도 전달\n\n관세 포함 견적(약 $180)으로 승인되었습니다.\n\n감사합니다.\nCompany People Operations" },
+    { ext: true, to: "payroll@payroll-partner.example", subject: "[정정 요청] 10월 급여 대상자 2명 제외",
+      body: "안녕하세요.\n\n9월 퇴사자 2명이 10월 급여 명단에 남아 있어 정정을 요청드립니다.\n\n• 대상: CO-KR-26-007, CO-KR-26-019 (9월 퇴사)\n• 요청: 10월 급여 대상에서 제외, 9월분 과지급 여부 확인\n• 회신: 10월 급여 마감(D-4) 전까지 부탁드립니다\n\n감사합니다.\nCompany People Operations" },
+    { ext: true, to: "advisory@labor-counsel.example", subject: "[Company] Review request – contractor classification risk (Vietnam)",
+      body: "Hello,\n\nWe'd like your review of a contractor arrangement in Vietnam that shows signs of employee-like work.\n\n• Reference: CO-VN-26-C02\n• Observed: 40+ hrs/week for 6 consecutive months, fixed manager, daily use of internal tools\n• Question: risk level under local law, and options to convert via EOR\n\nThe contract and work records will be shared through your secure portal.\n\nBest regards,\nPeople Operations, Company" },
+    { ext: true, to: "partners@search-firm-b.example", subject: "[Company] 재계약 조건 회신",
+      body: "안녕하세요.\n\n제안 주신 재계약 조건에 대해 회신드립니다.\n\n• 수수료: 22% 수용\n• 보증 기간: 90일에서 120일로 연장 요청\n\n위 조건으로 합의 가능하시면 계약서 수정본을 보내 주세요.\n\n감사합니다.\nCompany People Operations" },
+    { ext: false, to: "leadership@company.com (내부)", subject: "[리뷰 요청] 해외 원격근무 기준 초안",
+      body: "리더십 리뷰를 요청드립니다.\n\n• 연 최대 4주, 세무 리스크 국가 제외 목록 포함\n• KR·US 법인 공통 적용\n• 의견 마감: 10/7\n\n리뷰가 끝나면 전사 공지 일정을 잡겠습니다. 초안은 정책 폴더에 있습니다.\n\nPeople Operations" },
+    { ext: true, to: "support@it-vendor.example", subject: "[계정 회수 예약] CO-US-26-014 — 10/31 18:00 PT",
+      body: "안녕하세요.\n\n아래 일정으로 계정 회수 작업을 예약해 주세요.\n\n• 대상: CO-US-26-014\n• 회수 시각: 10/31 18:00 PT\n• 선행 작업: 공유 드라이브 소유권 이관 12건 (10/30까지 완료 예정)\n\n작업 후 회수 결과 리포트를 보내 주세요.\n\n감사합니다.\nCompany People Operations" },
+    { ext: true, to: "service@us-peo.example", subject: "[Company] Work location change – California (effective Nov 1 payroll)",
+      body: "Hi team,\n\nPlease update the work location for one of our employees.\n\n• Reference: CO-US-26-009\n• New work state: California\n• Effective: Nov 1 payroll\n\nPlease confirm state tax registration and any CA-specific leave requirements. The new address will be submitted through your portal.\n\nThanks,\nPeople Operations, Company" },
+  ];
+  // 루틴 업무 템플릿: t=제목, m=사람이 직접 할 때 통상 소요(분), k=p(파트너)/pii(보안 시트)
+  // steps=에이전트가 한 일, src=참고 자료, out=결과물, why=사람 확인 없이 끝낸 이유
+  const ROUTINE = {
+    on: [
+      { t: "{r} 입사 D-7 체크리스트 생성 (KR 직접고용)", m: 12, steps: ["채용 확정 기록에서 직무·팀·입사일 확인", "KR 직접고용 온보딩 기준 v1.3 적용", "담당자와 기한을 배정해 체크리스트 생성"], src: ["온보딩 기준 v1.3", "채용 확정 기록"], out: "체크리스트 12개 항목 (HR 5 · IT 3 · 매니저 4)", why: "승인된 기준을 그대로 적용하는 작업입니다. 기준에 없는 항목이 필요했다면 사람에게 올렸습니다." },
+      { t: "{r} 계정·장비 요청서 준비", m: 9, k: "p", steps: ["직무별 표준 계정 세트 조회", "엔지니어 표준 장비 사양 선택", "IT 벤더 양식으로 요청서 작성 후 전달"], src: ["직무별 계정 권한표", "장비 표준 사양"], out: "IT 벤더 요청서 1건 (계정 7개, 노트북 1대, 국내 배송)", why: "표준 세트 안의 요청입니다. 표준 밖 권한이나 해외 배송처럼 비용·예외가 생기면 사람에게 올립니다." },
+      { t: "입사자 AI 온보딩 트랙 1주차 과제 배정", m: 6, mail: MAIL.onb, steps: ["직무별 AI 활용 과제 풀에서 3개 선택", "Claude 워크스페이스 초대 발송", "입사자에게 과제 안내 메일 자동 발송"], src: ["AI 온보딩 프로그램 가이드"], out: "과제 3개 배정, 제출 기한 입사 5일차", why: "이미 정해진 프로그램을 운영하는 일입니다." },
+      { t: "{r} 버디 후보 3명 추천", m: 9, steps: ["같은 팀·인접 팀의 재직 6개월 이상 구성원 필터", "최근 버디 배정 횟수로 부담 조정", "후보 3명과 추천 근거를 매니저에게 제안"], src: ["조직도", "버디 배정 이력"], out: "후보 3명 추천안 (최종 선택은 매니저)", why: "추천까지만 하고 선택은 매니저가 합니다." },
+      { t: "{r} 입사 서류 수집 — 신분·계좌 정보는 보안 시트로", m: 15, k: "pii", steps: ["입사자가 제출한 서류 수신", "신분증·계좌·연락처를 보안 시트에 저장", "운영 화면에는 제출 완료 여부만 기록"], src: ["입사 서류 체크리스트"], out: "서류 6종 수령, 인적 정보 4개 항목을 보안 시트에 저장", why: "정해진 서류 수집입니다. 인적 정보는 에이전트도 다시 읽을 수 없는 쓰기 전용 시트로 격리했습니다." },
+      { t: "첫 주 1:1 일정 초안 → 매니저 캘린더 제안", m: 6, steps: ["매니저·버디·입사자 캘린더의 빈 시간 확인", "1:1 3회와 팀 소개 1회 일정 초안 작성", "매니저에게 제안 (확정은 매니저)"], src: ["구성원 캘린더"], out: "일정 초안 4건", why: "제안만 하고 확정은 당사자가 합니다." },
+    ],
+    rc: [
+      { t: "Backend Engineer 지원서 14건 1차 요약", m: 27, steps: ["신규 지원서 14건 수신", "채용 기준표의 필수 역량 5개와 대조해 요약", "강점과 면접에서 확인할 점 정리"], src: ["JD", "채용 기준표"], out: "요약 14건 (기준 충족 6 · 확인 필요 5 · 미충족 3)", why: "요약과 분류까지만 합니다. 서류 합격 여부는 채용 매니저가 결정합니다." },
+      { t: "인터뷰 일정 조율 — KST·EST·SGT 3개 시간대", m: 12, steps: ["면접관 3명과 후보자의 가능 시간 수집", "세 시간대가 겹치는 슬롯 계산", "초대장 발송과 화상 링크 생성"], src: ["면접관 캘린더", "후보자 회신"], out: "인터뷰 2건 확정 (11/2 09:00 KST · 11/3 21:00 KST)", why: "당사자들이 고른 시간 안에서만 확정했습니다." },
+      { t: "서치펌 파이프라인 주간 현황 수신·정리", m: 9, k: "p", steps: ["서치펌 2곳의 주간 리포트 수신", "포지션별 단계 정리, 중복 후보 제거", "2주 이상 멈춘 포지션 표시"], src: ["서치펌 주간 리포트"], out: "포지션 4개 · 후보 17명 (중복 2명 제거)", why: "받은 정보를 정리만 했습니다. 수수료 같은 계약 조건은 사람에게 올립니다." },
+      { t: "면접 평가표 미제출 2건 리마인드", m: 5, mail: MAIL.remind, steps: ["면접 후 24시간이 지난 평가표 확인", "미제출 면접관 2명에게 리마인드 메일 자동 발송"], src: ["평가표 제출 현황"], out: "리마인드 2건 발송", why: "정해진 기한(24시간)에 따른 알림입니다." },
+      { t: "후보자 레퍼런스 체크 질문지 작성", m: 12, steps: ["포지션 역량 기준 확인", "표준 질문 8개와 직무 맞춤 질문 3개 작성", "리크루터 검토 폴더에 저장"], src: ["레퍼런스 체크 표준 질문"], out: "질문지 초안 1건", why: "초안까지만 작성합니다. 발송은 리크루터가 합니다." },
+      { t: "후보자 연락처·이력 원본 → 보안 시트로", m: 6, k: "pii", steps: ["지원서에서 연락처·주소 추출", "보안 시트에 저장하고 채용 시스템에는 참조번호만 남김", "원본 첨부파일 열람 권한 제한"], src: ["지원서"], out: "인적 정보 3개 항목 격리", why: "인적 정보 분리 원칙을 자동으로 적용한 작업입니다." },
+    ],
+    ge: [
+      { t: "JP 노동법 개정 공지 검토 — 영향 없음", m: 18, steps: ["일본 후생노동성 개정 공지 수집", "현재 JP 인원의 고용형태(EOR 2명)와 대조", "영향 없음 판단 근거 기록"], src: ["후생노동성 공지", "EOR 계약 조건"], out: "검토 메모 1건 (영향 없음)", why: "영향이 있으면 사람에게 올립니다. 이번에는 해당이 없었습니다." },
+      { t: "SG EOR 계약서와 본사 기준 차이 비교", m: 24, k: "p", steps: ["EOR 파트너의 계약서 초안 수신", "본사 고용 기준 12개 항목과 비교", "차이 2건을 표시해 파트너에 사실 확인 요청"], src: ["EOR 계약서 초안", "본사 고용 기준"], out: "차이 2건 (수습 기간, 연차 일수) 파트너 문의", why: "사실 확인 질의만 보냈습니다. 조건을 받아들일지는 사람이 결정합니다." },
+      { t: "Q4 국가별 공휴일·연차 캘린더 갱신", m: 12, steps: ["KR·US·SG·JP 공휴일 수집", "전사 캘린더에 반영", "시차를 고려해 전사 회의 불가일 표시"], src: ["각국 정부 공휴일 공지"], out: "공휴일 11일 반영", why: "공개된 정보를 반영하는 작업입니다." },
+      { t: "VN 컨트랙터 근무 패턴 점검", m: 12, steps: ["계약 조건과 실제 근무 기록 대조", "위장고용 신호 체크리스트 7개 점검", "결과 기록"], src: ["컨트랙터 계약서", "근무 기록"], out: "신호 1개 (정상 범위)", why: "모니터링입니다. 신호가 기준을 넘으면 결정 요청으로 전환합니다." },
+      { t: "US 주별 원격근무자 등록 현황 점검", m: 9, steps: ["HRIS의 근무지와 PEO 등록 주(state) 대조", "불일치 여부 확인"], src: ["HRIS 근무지", "PEO 등록 현황"], out: "불일치 0건", why: "대조 결과가 일치했습니다." },
+    ],
+    py: [
+      { t: "10월 KR 급여 인풋 검증 — 변동 23건 대조", m: 27, k: "p", steps: ["입·퇴사, 휴직, 보상 변경 기록 수집", "급여 대행사 인풋 파일과 23건 대조", "모두 일치해 대행사에 확정 회신"], src: ["HRIS 변동 기록", "급여 인풋 파일"], out: "23건 일치, 대행사에 확정 회신", why: "모두 일치해서 확정했습니다. 불일치가 있으면 사람에게 올립니다." },
+      { t: "경비 청구 41건 정책 대조 → 38건 자동 통과", m: 24, mail: MAIL.expense, steps: ["청구 41건의 영수증과 항목 확인", "경비 정책 한도와 대조", "38건 통과, 3건은 사유와 함께 신청자에게 보완 요청 메일 발송"], src: ["경비 정책 v2", "영수증"], out: "통과 38 · 보완 요청 3", why: "정책 한도 안의 건만 통과시켰습니다. 한도 예외 승인은 사람이 합니다." },
+      { t: "L3~L5 페이밴드 시장 데이터 갱신", m: 18, steps: ["보상 서베이 최신본 수집", "레벨별 P25·P50·P75 계산", "현행 밴드와 차이 표시"], src: ["보상 서베이", "현행 페이밴드"], out: "밴드 비교표 (L4 상단이 시장 P75보다 4% 낮음)", why: "분석까지만 합니다. 밴드 조정은 사람이 결정합니다." },
+      { t: "US PEO 인보이스 대사 — 차이 0건", m: 12, k: "p", steps: ["PEO 인보이스 수신", "인원·보험료·수수료 대조", "대사 결과를 재무팀에 전달"], src: ["PEO 인보이스", "HRIS 인원"], out: "차이 0건, 재무팀 전달", why: "대사 결과가 일치했습니다. 지급 승인은 재무팀 절차를 따릅니다." },
+      { t: "{r} 급여 계좌 변경 요청 → 보안 시트로", m: 6, k: "pii", steps: ["변경 요청 수신, 본인 확인 완료 여부 확인", "새 계좌를 보안 시트에 저장", "급여 대행사에 보안 채널로 전달"], src: ["계좌 변경 요청서"], out: "1건 반영 (운영 화면에는 '변경 완료'만 표시)", why: "본인 확인이 끝난 건만 처리합니다." },
+      { t: "HRIS·급여 헤드카운트 대사", m: 9, steps: ["HRIS 재직자와 급여 명단 대조", "일치 여부 기록"], src: ["HRIS", "급여 명단"], out: "일치", why: "대조 결과가 일치했습니다. 불일치면 사람에게 올립니다." },
+    ],
+    lb: [
+      { t: "구성원 문의 응답: 연차 이월 규정 (KR)", m: 6, mail: MAIL.leave, steps: ["메일로 문의 수신", "취업규칙과 연차 정책에서 해당 조항 찾기", "조항을 인용한 답장을 자동 발송"], src: ["취업규칙", "연차 정책 FAQ"], out: "답변 1건 (응답까지 3분)", why: "문서에 답이 있는 질문입니다. 문서에 없거나 개인 사정이 걸린 질문은 사람에게 넘깁니다." },
+      { t: "구성원 문의 응답: 경비 한도 (US)", m: 5, steps: ["슬랙으로 문의 수신", "US 경비 정책에서 한도 확인", "금액 기준과 신청 방법 안내"], src: ["경비 정책 v2 (US)"], out: "답변 1건", why: "문서에 답이 있는 질문입니다." },
+      { t: "온보딩 정책 v1.3 변경 이력 정리", m: 12, steps: ["v1.2와 v1.3 비교", "변경 4건 요약", "정책 문서에 변경 이력 추가"], src: ["온보딩 정책 v1.2, v1.3"], out: "변경 이력 4건 기록", why: "이미 승인된 변경을 기록하는 일입니다." },
+      { t: "팀별 AI 활용도 주간 지표 집계", m: 15, steps: ["팀 단위로 Claude 사용 통계 집계 (개인 단위 제외)", "주간 추이 계산", "리더십 대시보드 갱신"], src: ["워크스페이스 사용 통계"], out: "5개 팀 지표 갱신", why: "팀 단위 집계만 합니다. 개인 평가에는 쓰지 않습니다." },
+      { t: "취업규칙 개정 필요 항목 체크 — 해당 없음", m: 12, k: "p", steps: ["노무 자문의 월간 법령 브리핑 수신", "현행 취업규칙과 대조", "개정 불필요 판단 근거 기록"], src: ["노무 자문 월간 브리핑", "취업규칙"], out: "검토 메모 (개정 불필요)", why: "개정이 필요하면 사람에게 올립니다. 이번에는 해당이 없었습니다." },
+    ],
+  };
+  const DECISIONS = [
+    { at: 580, a: "ge", risk: "medium", q: "CO-SG-26-001 (BD Manager, 싱가포르) 고용 형태를 정해 주세요",
+      ctx: ["싱가포르 법인 없음, 입사일 11/5 (D-36)", "법인 설립 리드타임 약 3개월"], rec: "EOR로 진행. 입사일을 지킬 수 있는 유일한 경로입니다.",
+      opts: ["EOR로 진행", "법인 설립 검토"], exec: "EOR 파트너에 고용 요청서 발송" },
+    { at: 605, a: "py", risk: "high", q: "오퍼 금액이 L4 페이밴드 상단을 6% 넘습니다 (Backend, KR)",
+      ctx: ["후보자가 경쟁 오퍼 보유", "같은 레벨 재직자 3명과 형평성 이슈 가능"], rec: "밴드 상단으로 오퍼하고 차액은 사이닝 보너스로 보전",
+      opts: ["사이닝 보너스로 보전", "밴드 예외 승인"], exec: "오퍼레터 확정본 → 리크루터 전달", noPartner: true },
+    { at: 670, a: "ge", risk: "medium", q: "JP 합격자 취업비자 스폰서가 필요합니다",
+      ctx: ["EOR 파트너가 스폰서 가능 (월 +$300)", "처리 기간 6~8주"], rec: "EOR 경유 스폰서. 입사일 1주 조정 가능성을 후보자에게 미리 안내",
+      opts: ["EOR에 비자 요청", "입사일 조정 협의"], exec: "EOR 파트너에 비자 스폰서 요청" },
+    { at: 710, a: "on", risk: "low", q: "SG 입사자 노트북을 본사에서 발송할까요? (관세 포함 약 $180)",
+      ctx: ["현지 구매 대비 3일 빠름", "MDM 사전 설정 가능"], rec: "본사 발송", opts: ["본사 발송", "현지 구매"], exec: "IT 벤더에 발송 요청" },
+    { at: 800, a: "py", risk: "medium", q: "헤드카운트가 맞지 않습니다 (HRIS 21명, 급여 23명)",
+      ctx: ["9월 퇴사자 2명이 급여 대행사에 반영 안 된 것으로 추정", "10월 급여 마감 D-4"], rec: "급여 대행사에 정정 요청하고 과지급 여부 확인",
+      opts: ["정정 요청", "추가 조사 후 결정"], exec: "급여 대행사에 정정 요청 발송" },
+    { at: 845, a: "lb", risk: "high", q: "VN 컨트랙터에게서 위장고용 신호가 보입니다",
+      ctx: ["6개월 연속 주 40시간 이상", "고정 매니저, 사내 도구 상시 사용"], rec: "현지 노무 자문에 EOR 전환 검토 의뢰",
+      opts: ["자문 의뢰", "현 계약 유지"], exec: "현지 노무 자문에 검토 의뢰" },
+    { at: 890, a: "rc", risk: "medium", q: "서치펌 B 재계약: 수수료 20% 제안에 22% 역제안이 왔습니다",
+      ctx: ["지난 2분기 채용 4건, 조기 퇴사 0건", "시장 평균 20~25%"], rec: "22% 수용, 대신 보증 기간 90일 → 120일로 연장",
+      opts: ["22% + 보증 연장", "20% 고수"], exec: "서치펌에 조건 회신" },
+    { at: 940, a: "lb", risk: "medium", q: "해외 원격근무 기준 초안을 전사에 공지할까요?",
+      ctx: ["연 최대 4주, 세무 리스크 국가 제외 목록 포함", "KR·US 법인 공통 적용"], rec: "리더십 리뷰 후 공지",
+      opts: ["리더십 리뷰 요청", "바로 공지"], exec: "리더십 채널에 리뷰 요청 게시", noPartner: true },
+    { at: 990, a: "on", risk: "high", q: "CO-US-26-014 오프보딩: 계정 회수 시점을 확정해 주세요",
+      ctx: ["마지막 근무일 10/31 18:00 PT", "공유 드라이브 소유권 이관 12건"], rec: "10/31 18:00 PT 회수, 이관은 전날까지 완료",
+      opts: ["권장 일정 승인", "하루 유예"], exec: "IT 벤더에 회수 작업 예약" },
+    { at: 1035, a: "py", risk: "medium", q: "US 직원 1명이 캘리포니아로 이주합니다. 주 세금 등록이 필요합니다",
+      ctx: ["11/1 급여부터 적용 필요", "CA 추가 휴가 규정 적용 대상"], rec: "PEO에 근무지 변경 요청하고 CA 규정을 안내",
+      opts: ["PEO에 변경 요청", "이주 일정 확인 후 진행"], exec: "US PEO에 근무지 변경 요청" },
+  ];
+  DECISIONS.forEach((d, i) => (d.mail = DMAIL[i]));
+  const BASE_N = DECISIONS.length;
+  // ───────── 업무 유형별 도입 단계 ─────────
+  // 키 = "에이전트:ROUTINE 순서". 여기 없는 반복 업무는 이미 독립 수행(샘플 검수) 단계.
+  const PILOT = {
+    "py:1": { reviewer: "재무 담당 (현업)", since: "9/15", training: "9/15 재무팀과 검수 기준 합의 · 9/16 30분 사용 교육", h: { n: 17, pass: 16, rework: 1, error: 0 }, guide: 3,
+      fixes: ["v1.1 국가별 식대 한도를 분리해 대조", "v1.2 영수증 판독 불가 건은 통과 대신 보완 요청으로 분류", "v1.3 보완 요청 메일에 해당 정책 조항 링크 첨부"] },
+    "on:3": { reviewer: "팀 매니저 (현업)", since: "9/18", training: "9/18 매니저 대상 버디 제도 가이드 공유", h: { n: 12, pass: 9, rework: 3, error: 0 }, guide: 2,
+      fixes: ["v1.1 최근 6개월 내 버디 경험자는 후순위로", "v1.2 추천 근거에 시차(근무 국가)를 함께 표기"] },
+    "rc:0": { reviewer: "채용 매니저 (Engineering)", since: "9/22", training: "9/22 채용 매니저 대상 30분 사용 교육", h: { n: 9, pass: 7, rework: 2, error: 0 }, guide: 2,
+      fixes: ["v1.1 필수 역량을 기준표 순서대로 정렬", "v1.2 '확인 필요' 사유를 한 줄로 명시"] },
+    "lb:0": { reviewer: "HR 컨트롤타워", since: "9/24", training: "9/24 답변 톤·에스컬레이션 규칙 정리", h: { n: 7, pass: 6, rework: 1, error: 0 }, guide: 1,
+      fixes: ["v1.1 개인 사정이 걸린 문의는 담당자에게 넘기는 규칙 추가"] },
+    "ge:1": { reviewer: "법무 담당 (Foundations)", since: "9/28", training: "9/28 법무 담당과 비교 항목 12개 합의", h: { n: 2, pass: 1, rework: 1, error: 0 }, guide: 1, fixes: [] },
+  };
+  const BACKLOG = [
+    { agent: "on", title: "퇴직자 경력증명서 발급 안내", note: "반복 업무. 파일럿 후보이며 검수자 지정이 필요합니다." },
+    { agent: "ge", title: "국가별 비자 서류 체크리스트 작성", note: "반복 업무. 현지 자문의 기준 확인 후 파일럿을 시작합니다." },
+    { agent: "py", title: "분기 보상 리뷰 자료 준비", note: "자료 정리는 반복, 보상 결정은 판단입니다. 자료 정리만 자동화 대상으로 분류했습니다." },
+  ];
+  const JUDGMENT = [
+    ["고용 형태 결정", "직접고용·EOR·위탁 선택은 비용·리스크·일정을 함께 판단해야 합니다."],
+    ["보상 예외", "페이밴드 초과나 사이닝 보너스는 형평성 판단이 필요합니다."],
+    ["비자·입사일 변경", "후보자 경험과 비용이 걸린 선택입니다."],
+    ["파트너 계약 조건", "수수료·보증 조건은 협상 판단입니다."],
+    ["전사 공지·정책 시행", "조직 전체에 영향을 줍니다."],
+    ["되돌리기 어려운 실행", "계정 회수, 외부 발송처럼 취소할 수 없는 일입니다."],
+    ["독립 수행 전환", "측정 결과를 보고 에이전트에게 얼마나 맡길지 사람이 정합니다."],
+  ];
+  const CRIT = { n: 20, rework: 0.10, error: 0 }, SAMPLE = 0.08;
+  const FIX = { "기준 누락": "검수자가 지적한 기준을 체크리스트에 추가", "표현·형식": "결과 양식과 표현 규칙을 템플릿에 반영", "사실 오류": "참조 자료 최신본 확인 단계를 추가하고 근거 표기를 필수로 변경" };
+  function buildWork() {
+    const W = {}; let i = 0;
+    AGENTS.forEach((a) => ROUTINE[a.id].forEach((def, k) => {
+      const key = `${a.id}:${k}`, p = PILOT[key];
+      const hn = 24 + (i * 7) % 30, hr = i % 4 === 0 ? 1 : 0;
+      W[key] = { key, agent: a.id, def, title: def.t.replace("{r} ", ""), stage: p ? "pilot" : "indep",
+        cfg: p || { reviewer: "HR 컨트롤타워 (샘플 검수)", since: "8월", training: "8월 파일럿 중 현업 교육 완료", promoted: "9월 초" },
+        h: p ? { ...p.h } : { n: hn, pass: hn - hr, rework: hr, error: 0 },
+        today: { n: 0, pass: 0, rework: 0, error: 0, count: 0, times: [] },
+        guide: p ? p.guide : 3, fixes: p ? p.fixes.slice() : ["파일럿 기간 개선 이력은 전환 시점에 보관됨"], feedback: [], promoAsked: false };
+      i++;
+    }));
+    return W;
+  }
+  const tot = (w) => ({ n: w.h.n + w.today.n, pass: w.h.pass + w.today.pass, rework: w.h.rework + w.today.rework, error: w.h.error + w.today.error });
+  const pct = (x, n) => (n ? Math.round((x / n) * 100) + "%" : "—");
+  const avgT = (w) => (w.today.times.length ? Math.round(w.today.times.reduce((a, b) => a + b, 0) / w.today.times.length) + "분" : "—");
+  const meets = (w) => { const t = tot(w); return t.n >= CRIT.n && t.rework / t.n <= CRIT.rework && t.error <= CRIT.error; };
+
+  const START = 540, END = 1080, SEED_TO = 615;
+
+  // ───────── 상태 ─────────
+  let S, rng, layer, playing = true, fast = false, lastT = 0, acc = 0, packets = [];
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const $ = (id) => document.getElementById(id);
+
+  function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function reset() {
+    rng = mulberry(20261030);
+    S = { t: START, done: 0, dec: 0, humanMin: 0, pii: 0, mailIn: 0, mailOut: 0, mails: [], reviews: [], reviewed: 0, improve: 0, savedMin: 0, per: {}, waiting: [], next: 0, log: [], items: [], ended: false, refN: 31 };
+    closeDrawer(true);
+    DECISIONS.length = BASE_N;
+    S.work = buildWork();
+    $("play").disabled = false; $("play").textContent = playing ? "일시정지" : "재생";
+    AGENTS.forEach((a) => (S.per[a.id] = 0));
+    packets = [];
+    if (layer) layer.innerHTML = "";
+    $("log").innerHTML = "";
+    S.silent = true;
+    while (S.t < SEED_TO) step(1);
+    // 첫 결정은 이미 승인된 상태로 시작 → 화면에 흐름이 보이도록
+    if (S.waiting.length) decide(S.waiting[0].id, 0, true);
+    // 개장 전 검수는 처리된 상태로, 최근 2건만 대기로 남김
+    S.reviews.slice(0, Math.max(0, S.reviews.length - 2)).forEach((it) => review(S.items.indexOf(it), "pass", null, false, true));
+    S.silent = false;
+    renderAll();
+  }
+  const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.floor(m % 60)).padStart(2, "0")}`;
+  const ref = () => `CO-KR-26-0${S.refN++ % 60 + 10}`;
+
+  // ───────── 시뮬레이션 ─────────
+  function step(dt) {
+    if (S.ended) return;
+    S.t = Math.min(END, S.t + dt);
+    // 루틴 업무: 시간당 약 12건
+    const p = 0.2 * dt;
+    let n = Math.floor(p) + (rng() < p % 1 ? 1 : 0);
+    while (n-- > 0) routine();
+    // 결정 등장
+    while (S.next < BASE_N && DECISIONS[S.next].at <= S.t) raise(S.next++);
+    // 자동 결정 모드: 15분 이상 기다린 건은 추천대로
+    if ($("auto").checked && !S.silent) S.waiting.filter((w) => S.t - w.since >= 15).forEach((w) => decide(w.id, 0, false, true));
+    if ($("auto").checked && !S.silent) S.reviews.filter((it) => S.t - it.arr >= 10).forEach((it) => { const x = rng(); review(S.items.indexOf(it), x < 0.88 ? "pass" : "rework", x < 0.88 ? null : (x < 0.94 ? "기준 누락" : "표현·형식"), true); });
+    if (S.t >= END && !S.ended) { S.ended = true; $("play").textContent = "18:00 종료"; $("play").disabled = true; renderInbox(); }
+  }
+  function routine() {
+    const blocked = new Set(S.waiting.map((w) => DECISIONS[w.id].a));
+    const pool = AGENTS.filter((a) => !blocked.has(a.id) || rng() < 0.5); // 대기 중인 에이전트도 다른 일은 계속하지만 속도가 줄어듦
+    const ag = pool[Math.floor(rng() * pool.length)];
+    const list = ROUTINE[ag.id];
+    const di = Math.floor(rng() * list.length), def = list[di], kind = def.k, min = def.m;
+    const key = `${ag.id}:${di}`, w = S.work[key], pilot = w.stage === "pilot";
+    const text = def.t.replace("{r}", ref());
+    S.done++; S.per[ag.id]++; S.savedMin += min; w.today.count++;
+    if (kind === "pii") S.pii++;
+    const sendNow = def.mail && !pilot;
+    if (sendNow) S.mailIn++;
+    const tag = pilot ? ["review", "검수 요청"] : def.mail ? ["mail", "메일 · 자동"] : kind === "pii" ? ["pii", "보안 시트"] : kind === "p" ? ["partner", "파트너"] : ["auto", "자동 완료"];
+    const agentMin = 1 + Math.floor(rng() * 4);
+    const item = { type: "task", agent: ag.id, key, text, def, tag, t: hhmm(S.t), arr: S.t, agentMin };
+    S.items.push(item);
+    if (pilot) { item.review = "pending"; item.reviewKind = "pilot"; S.reviews.push(item); }
+    else {
+      w.today.times.push(agentMin);
+      if (rng() < SAMPLE) { item.review = "pending"; item.reviewKind = "sample"; S.reviews.push(item); }
+    }
+    if (sendNow) S.mails.push({ t: item.t, to: def.mail.to, subject: def.mail.subject, how: "자동", item });
+    addLog(ag.name, pilot ? `${text} (현업 검수 대기)` : text, tag, item);
+    S.workDirty = true;
+    if (!S.silent && pilot) renderInbox();
+    if (!S.silent) {
+      fly("in", ag.id, "var(--packet)");
+      if (kind === "p") setTimeout(() => fly("ap", ag.id, "var(--blue)"), 500);
+    }
+  }
+  function raise(i) {
+    const d = DECISIONS[i];
+    S.waiting.push({ id: i, since: d.at });
+    addLog(agentOf(d.a).name, "결정 요청: " + d.q, ["ask", "사람에게 질문"], { type: "decision", di: i });
+    if (!S.silent) { fly("ac", d.a, "var(--amber)"); renderInbox(); }
+  }
+  function decide(i, optIdx, seeded, auto) {
+    const w = S.waiting.find((x) => x.id === i);
+    if (!w) return;
+    S.waiting = S.waiting.filter((x) => x.id !== i);
+    const d = DECISIONS[i], ag = agentOf(d.a);
+    S.dec++; S.humanMin += 2;
+    if (optIdx === -1) {
+      S.outcome = S.outcome || {}; S.outcome[i] = { opt: -1, by: "컨트롤타워", mail: "held", choice: "보류", waited: Math.round(S.t - w.since), at: hhmm(S.t) };
+      addLog("컨트롤타워", `보류: ${d.q}`, ["hold", "보류"], { type: "decision", di: i });
+    } else {
+      const execText = optIdx === 0 ? d.exec : `${d.opts[optIdx]} — 조건 반영해 진행`;
+      S.outcome = S.outcome || {}; S.outcome[i] = { opt: optIdx, by: auto ? "추천대로 자동 결정 (데모 설정)" : "컨트롤타워", choice: d.opts[optIdx], waited: Math.round(S.t - w.since), at: hhmm(S.t), exec: execText, mail: optIdx === 0 ? "sent" : "redo" };
+      addLog("컨트롤타워", `결정 "${d.opts[optIdx]}" · 대기 ${Math.round(S.t - w.since)}분`, ["ok", "승인"], { type: "decision", di: i });
+      const after = () => {
+        if (d.promote) {
+          const w = S.work[d.promote];
+          if (optIdx === 0) { w.stage = "indep"; w.cfg = { ...w.cfg, promoted: `오늘 ${hhmm(S.t)}` }; addLog("컨트롤타워", `단계 전환 · ${w.title}: 파일럿 → 독립 수행`, ["learn", "단계 전환"], { type: "decision", di: i }); }
+          else w.extended = true;
+          S.workDirty = true;
+        }
+        addLog(ag.name, execText, d.noPartner ? ["auto", "실행"] : ["partner", "파트너 실행"], { type: "decision", di: i });
+        if (optIdx === 0) { S.mailOut++; S.mails.push({ t: hhmm(S.t), to: d.mail.to, subject: d.mail.subject, how: "승인 후", item: { type: "decision", di: i } }); addLog(ag.name, `메일 발송 → ${d.mail.to}`, ["mail", "메일 · 승인 후"], { type: "decision", di: i }); }
+        else addLog(ag.name, "선택에 맞춰 메일 초안을 다시 작성합니다 (발송 전 재승인)", ["ask", "초안 수정"], { type: "decision", di: i });
+      };
+      if (seeded || S.silent) after();
+      else {
+        fly("ca", d.a, "var(--teal)", () => { after(); if (!d.noPartner) fly("ap", d.a, "var(--blue)"); renderLog(); });
+      }
+    }
+    if (!seeded) renderAll();
+  }
+  const RES = { pass: ["ok", "그대로 승인"], rework: ["rework", "수정 후 승인"], error: ["hold", "반려"] };
+  function review(idx, res, reason, auto, seeded) {
+    const it = S.items[idx];
+    if (!it || it.review !== "pending") return;
+    const w = S.work[it.key], ag = agentOf(it.agent);
+    S.reviews = S.reviews.filter((x) => x !== it);
+    it.review = res; it.reason = reason; it.reviewedAt = hhmm(S.t); it.reviewer = auto ? `${w.cfg.reviewer} · 자동 (데모 설정)` : w.cfg.reviewer;
+    w.today.n++; w.today[res]++; S.reviewed++;
+    if (it.reviewKind === "pilot") {
+      it.doneAt = S.t; w.today.times.push(Math.max(it.agentMin, Math.round(S.t - it.arr)));
+      if (res !== "error" && it.def.mail) { S.mailOut++; S.mails.push({ t: hhmm(S.t), to: it.def.mail.to, subject: it.def.mail.subject, how: "검수 후", item: it }); }
+    }
+    it.tag = [RES[res][0], RES[res][1]];
+    addLog(w.cfg.reviewer, `검수 "${RES[res][1]}${reason ? ": " + reason : ""}" · ${w.title}`, RES[res], it);
+    if (res === "error") addLog(ag.name, `반려된 결과 폐기 → 원인 확인 후 재작업`, ["rework", "재작업"], it);
+    if (res !== "pass") {
+      w.feedback.push({ t: hhmm(S.t), reason, by: w.cfg.reviewer, text: it.text });
+      if (w.feedback.length % 2 === 0) {
+        w.guide++; S.improve++;
+        const fx = `v1.${w.guide} ${FIX[reason] || FIX["기준 누락"]}`;
+        w.fixes.push(fx);
+        addLog(ag.name, `피드백 반영 · ${w.title} 가이드 ${fx}`, ["learn", "가이드 개선"], it);
+      }
+    }
+    if (w.stage === "pilot" && !w.promoAsked && meets(w)) raisePromotion(w);
+    S.workDirty = true;
+    if (!seeded) renderAll();
+  }
+  function raisePromotion(w) {
+    w.promoAsked = true;
+    const t = tot(w);
+    const d = { at: S.t, dyn: true, a: w.agent, risk: "low", promote: w.key,
+      q: `"${w.title}" 업무를 독립 수행으로 전환할까요?`,
+      ctx: [`현업 검수 ${t.n}건: 수정 없이 통과 ${t.pass} · 재작업 ${t.rework} · 오류 ${t.error}`, `전환 기준(검수 ${CRIT.n}건 이상, 재작업 ${CRIT.rework * 100}% 이하, 오류 0건)을 충족했습니다`, `검수자 ${w.cfg.reviewer} · 파일럿 시작 ${w.cfg.since} · 가이드 v1.${w.guide}`],
+      rec: `전환하고 샘플 검수(${SAMPLE * 100}%)로 계속 측정`, opts: ["독립 수행으로 전환", "파일럿 2주 연장"],
+      exec: "업무 단계를 독립 수행으로 변경, 샘플 검수로 전환", noPartner: true,
+      mail: { ext: false, to: `${w.cfg.reviewer.replace(/ \(.*\)/, "")} (내부)`, subject: `[파일럿 종료] ${w.title} — 독립 수행 전환 안내`,
+        body: `그동안 검수에 참여해 주셔서 감사합니다.\n\n• 업무: ${w.title}\n• 검수 결과: ${t.n}건 중 수정 없이 통과 ${t.pass}건, 재작업 ${t.rework}건, 오류 ${t.error}건\n• 변경: 오늘부터 독립 수행으로 전환하고, 앞으로는 ${SAMPLE * 100}% 샘플만 검수를 요청드립니다\n\n이상한 결과가 보이면 언제든 이 메일에 답장 주세요. 바로 파일럿 단계로 되돌립니다.\n\nPeople Operations` } };
+    DECISIONS.push(d);
+    const i = DECISIONS.length - 1;
+    S.waiting.push({ id: i, since: S.t });
+    addLog(agentOf(d.a).name, "결정 요청: " + d.q, ["ask", "전환 승인 요청"], { type: "decision", di: i });
+    if (!S.silent) fly("ac", d.a, "var(--amber)");
+  }
+  const agentOf = (id) => AGENTS.find((a) => a.id === id);
+  function addLog(who, text, tag, item) {
+    S.log.unshift({ t: hhmm(S.t), who, text, tag, item });
+    if (S.log.length > 60) S.log.pop();
+  }
+
+  // ───────── 허브 다이어그램 ─────────
+  const C = { x: 320, y: 300 }, RA = 150, RP = 250, POS = {};
+  function buildHub() {
+    const svg = $("hub"), ns = "http://www.w3.org/2000/svg";
+    const el = (tag, attrs, parent = svg) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+    svg.innerHTML = "";
+    AGENTS.forEach((a, i) => {
+      const ang = (-90 + i * 72) * Math.PI / 180;
+      POS[a.id] = { x: C.x + RA * Math.cos(ang), y: C.y + RA * Math.sin(ang), px: C.x + RP * Math.cos(ang), py: C.y + RP * Math.sin(ang), ang };
+    });
+    AGENTS.forEach((a) => { const p = POS[a.id]; el("line", { class: "spoke", x1: C.x, y1: C.y, x2: p.x, y2: p.y }); el("line", { class: "spoke-p", x1: p.x, y1: p.y, x2: p.px, y2: p.py }); });
+    // partners
+    AGENTS.forEach((a) => {
+      const p = POS[a.id], g = el("g", { id: "pt-" + a.id });
+      const w = Math.max(92, a.partner.length * 10.5 + 18);
+      el("rect", { class: "partner", x: p.px - w / 2, y: p.py - 13, width: w, height: 26, rx: 13 }, g);
+      const t = el("text", { class: "p-t", x: p.px, y: p.py + 4, "text-anchor": "middle" }, g); t.textContent = a.partner;
+    });
+    // core
+    const core = el("circle", { class: "c-core", cx: C.x, cy: C.y, r: 60, tabindex: "0", role: "button", "aria-label": "사람의 결정 목록 보기" });
+    core.addEventListener("click", () => openCollection("decided"));
+    core.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCollection("decided"); } });
+    const t1 = el("text", { class: "c-core-t", x: C.x, y: C.y - 2, "text-anchor": "middle" }); t1.textContent = "HR 컨트롤타워";
+    const t2 = el("text", { class: "c-core-s", x: C.x, y: C.y + 16, "text-anchor": "middle" }); t2.textContent = "사람 1명 · 판단";
+    // agents
+    AGENTS.forEach((a) => {
+      const p = POS[a.id], g = el("g", { class: "agent-g", id: "ag-" + a.id, tabindex: "0", role: "button", "aria-label": a.name + " 오늘 처리 목록 보기" });
+      g.addEventListener("click", () => openList(a.id));
+      g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openList(a.id); } });
+      el("circle", { class: "halo", cx: p.x, cy: p.y, r: 36 }, g);
+      el("circle", { class: "agent", cx: p.x, cy: p.y, r: 34 }, g);
+      const ic = el("text", { class: "a-ic", x: p.x, y: p.y - 6, "text-anchor": "middle" }, g); ic.textContent = a.ic;
+      const n = el("text", { class: "a-n", x: p.x, y: p.y + 13, "text-anchor": "middle", id: "n-" + a.id }, g); n.textContent = "0";
+      // 라벨: 원의 바깥쪽 옆 (오른쪽 노드는 오른쪽, 왼쪽 노드는 왼쪽) — 파트너 태그와 겹치지 않게
+      const right = Math.cos(p.ang) > -0.1;
+      const lx = right ? p.x + 44 : p.x - 44, ly = p.y - 2, anchor = right ? "start" : "end";
+      const l1 = el("text", { class: "lbl", x: lx, y: ly, "text-anchor": anchor }, g); l1.textContent = a.name;
+      const l2 = el("text", { class: "lbl-s", x: lx, y: ly + 14, "text-anchor": anchor }, g); l2.textContent = a.sub;
+    });
+    layer = el("g", {});
+  }
+  function fly(kind, aid, color, done) {
+    const p = POS[aid];
+    let a, b;
+    if (kind === "in") { const off = (rng() - 0.5) * 0.9, r = 330; a = { x: C.x + r * Math.cos(p.ang + off), y: C.y + r * Math.sin(p.ang + off) }; b = p; }
+    else if (kind === "ac") { a = p; b = C; }
+    else if (kind === "ca") { a = C; b = p; }
+    else { a = p; b = { x: p.px, y: p.py }; }
+    if (reduce) { if (kind === "ap") flash(aid); done && done(); return; }
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("r", kind === "in" ? 4 : 6); c.setAttribute("fill", color);
+    layer.appendChild(c);
+    packets.push({ c, a, b, t: 0, dur: (kind === "in" ? 1100 : 900) / (fast ? 2 : 1), done: () => { if (kind === "ap") flash(aid); done && done(); } });
+  }
+  function flash(aid) { const g = $("pt-" + aid); if (!g) return; g.classList.add("flash"); setTimeout(() => g.classList.remove("flash"), 700); }
+
+  // ───────── 렌더 ─────────
+  function renderAll() { renderKpi(); renderInbox(); renderLog(); renderHub(); renderWork(); }
+  function renderKpi() {
+    $("clock").textContent = hhmm(S.t);
+    $("k-done").textContent = S.done;
+    $("k-dec").textContent = S.dec;
+    $("k-wait").textContent = S.waiting.length + S.reviews.length;
+    $("k-wait-s").textContent = `결정 ${S.waiting.length} · 검수 ${S.reviews.length}`;
+    $("k-pii").textContent = S.pii;
+    $("k-mail").textContent = S.mailIn + S.mailOut;
+    $("k-mail-s").textContent = `내부 자동 ${S.mailIn} · 승인 후 ${S.mailOut}`;
+  }
+  function renderHub() {
+    const waitSet = new Set(S.waiting.map((w) => DECISIONS[w.id].a));
+    AGENTS.forEach((a) => { $("n-" + a.id).textContent = S.per[a.id]; $("ag-" + a.id).classList.toggle("waiting", waitSet.has(a.id)); });
+  }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const RISK = { low: "낮음", medium: "중간", high: "높음" };
+  function renderInbox() {
+    const box = $("inbox");
+    $("inbox-sub").textContent = S.waiting.length + S.reviews.length ? `결정 ${S.waiting.length} · 검수 ${S.reviews.length}` : "에이전트가 멈추고 묻는 곳";
+    let html = "";
+    if (!S.waiting.length && !S.reviews.length) html += `<div class="empty"><b>지금은 확인할 일이 없습니다</b>에이전트와 파트너가 나머지를 처리하고 있습니다.</div>`;
+    S.waiting.slice().reverse().forEach((w) => {
+      const d = DECISIONS[w.id], ag = agentOf(d.a);
+      html += `<article class="card ${d.risk === "high" ? "high" : ""}">
+        <div class="card-top"><span>${esc(ag.name)} · 요청 ${hhmm(w.since)}</span><span><span class="chip risk-${d.risk}">리스크 ${RISK[d.risk]}</span> <span class="wait" data-wait="${w.id}">대기 ${Math.round(S.t - w.since)}분</span></span></div>
+        <h3>${esc(d.q)}</h3>
+        <ul>${d.ctx.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
+        <div class="rec"><b>에이전트 추천</b> · ${esc(d.rec)}</div>
+        <details class="mail-prev"><summary>"${esc(d.opts[0])}" 선택 시 보낼 메일 · ${esc(d.mail.to)}</summary>${mailHTML(d.mail, "draft")}</details>
+        <div class="acts">${d.opts.map((o, k) => `<button type="button" class="${k === 0 ? "primary" : ""}" data-d="${w.id}" data-o="${k}">${esc(o)}</button>`).join("")}
+          <button type="button" class="hold" data-d="${w.id}" data-o="-1">보류</button></div>
+      </article>`;
+    });
+    S.reviews.slice().reverse().forEach((it) => {
+      const w = S.work[it.key], ag = agentOf(it.agent), idx = S.items.indexOf(it);
+      html += `<article class="card review">
+        <div class="card-top"><span>${it.reviewKind === "pilot" ? "파일럿 검수" : "샘플 검수"} · ${esc(ag.name)}</span><span>검수자 ${esc(w.cfg.reviewer)}</span></div>
+        <h3>${esc(it.text)}</h3>
+        <div class="out"><b>결과</b> · ${esc(it.def.out)}${it.reviewKind === "pilot" && it.def.mail ? " · 통과하면 메일 발송" : ""}</div>
+        <div class="acts">${reviewBtns(idx)}<button type="button" class="link" data-open-item="${idx}">상세</button></div>
+      </article>`;
+    });
+    box.innerHTML = html;
+    renderHub(); renderKpi();
+  }
+  function renderLog() {
+    $("log").innerHTML = S.log.map((l, k) => rowHTML(l, "data-log", k)).join("");
+  }
+  const rowHTML = (l, attr, k) => `<li><button type="button" class="row" ${attr}="${k}"><span class="t">${l.t}</span><span class="who">${esc(l.who)}</span><span>${esc(l.text)}</span><span class="tag ${l.tag[0]}">${l.tag[1]}</span></button></li>`;
+  $("log").addEventListener("click", (e) => { const b = e.target.closest("[data-log]"); if (b) openItem(S.log[+b.dataset.log].item, false); });
+
+
+  const reviewBtns = (idx) => `<button type="button" class="primary" data-r="${idx}" data-res="pass">그대로 승인</button><button type="button" class="rw" data-r="${idx}" data-res="rework" data-reason="기준 누락">수정: 기준 누락</button><button type="button" class="rw" data-r="${idx}" data-res="rework" data-reason="표현·형식">수정: 표현·형식</button><button type="button" class="er" data-r="${idx}" data-res="error" data-reason="사실 오류">반려: 사실 오류</button>`;
+  const STG = { pilot: ["pilot", "② 파일럿 검증"], indep: ["indep", "④ 독립 수행"], backlog: ["backlog", "① 구분 완료"] };
+  function taskReviewHTML(item) {
+    const w = S.work[item.key], d = item.def, idx = S.items.indexOf(item);
+    let h = `<div class="dr-sec"><h4>업무 단계</h4><p><span class="stg ${STG[w.stage][0]}">${STG[w.stage][1]}</span> <button type="button" class="acts-link" data-work="${w.key}">이 업무의 측정 보기 ›</button></p></div>`;
+    if (item.reviewKind) {
+      const kindTxt = item.reviewKind === "pilot" ? `파일럿 단계라 ${w.cfg.reviewer}가 결과를 검수한 뒤 완료됩니다.` : `독립 수행 업무 중 ${SAMPLE * 100}%를 무작위로 골라 검수합니다.`;
+      h += `<div class="dr-sec"><h4>${item.reviewKind === "pilot" ? "현업 검수" : "샘플 검수"}</h4><p>${kindTxt}</p>${item.review === "pending"
+        ? `<div class="acts" style="margin-top:8px">${reviewBtns(idx)}</div>`
+        : `<p style="margin-top:6px"><span class="tag ${RES[item.review][0]}">${RES[item.review][1]}${item.reason ? " · " + esc(item.reason) : ""}</span> ${item.reviewedAt} · ${esc(item.reviewer)}</p>`}</div>`;
+    }
+    const why = item.reviewKind === "pilot"
+      ? `<div class="why ask">아직 파일럿 단계입니다. 검수 결과로 재작업·오류·독립 수행률을 측정하고, 기준을 넘으면 사람이 독립 수행 전환을 결정합니다.</div>`
+      : `<div class="why">${esc(d.why)}${d.mail ? " 승인된 내부 템플릿 메일이라 자동 발송했습니다." : ""}</div>`;
+    return h + `<div class="dr-sec"><h4>${item.reviewKind === "pilot" ? "사람이 검수하는 이유" : "사람 확인 없이 처리한 이유"}</h4>${why}</div>`;
+  }
+  function gaugeHTML(w) {
+    if (w.stage === "indep") return `<span class="gauge ok"><small>샘플 검수 ${SAMPLE * 100}% · 전환 ${esc(w.cfg.promoted)}</small></span>`;
+    const t = tot(w), ok = meets(w);
+    return `<span class="gauge ${ok ? "ok" : ""}"><span class="bar"><i style="width:${Math.min(100, (t.n / CRIT.n) * 100)}%"></i></span><small>${Math.min(t.n, CRIT.n)}/${CRIT.n}${ok ? " · 충족" : ""}</small></span>`;
+  }
+  function renderWork() {
+    if (!S.work) return;
+    S.workDirty = false;
+    const W = Object.values(S.work), pilots = W.filter((w) => w.stage === "pilot"), indeps = W.filter((w) => w.stage === "indep");
+    const reviewers = new Set(pilots.map((w) => w.cfg.reviewer)).size;
+    const todayRev = W.reduce((a, w) => a + w.today.n, 0);
+    const fbTotal = W.reduce((a, w) => a + w.h.rework + w.h.error + w.today.rework + w.today.error, 0);
+    const guideUps = pilots.concat(indeps.filter((w) => PILOT[w.key])).reduce((a, w) => a + w.fixes.length, 0);
+    const it = indeps.map(tot).reduce((a, t) => ({ n: a.n + t.n, pass: a.pass + t.pass }), { n: 0, pass: 0 });
+    $("stages").innerHTML = [
+      ["stage1", "01", "구분", `반복 업무 <b>${W.length + BACKLOG.length}</b>종 · 판단 지점 <b>${JUDGMENT.length}</b>종`],
+      ["stage2", "02", "현업과 소규모 검증", `파일럿 <b>${pilots.length}</b>종 · 검수자 <b>${reviewers}</b>명 · 오늘 검수 <b>${todayRev}</b>건`],
+      ["stage3", "03", "교육과 피드백", `누적 피드백 <b>${fbTotal}</b>건 · 가이드 개선 <b>${guideUps}</b>회`],
+      ["stage4", "04", "측정과 독립 수행", `독립 수행 <b>${indeps.length}</b>종 · 독립 수행률 <b>${pct(it.pass, it.n)}</b>`],
+    ].map(([k, n, h, v]) => `<li><button type="button" data-open-stage="${k}"><span class="n">${n}</span><span class="h">${h}</span><span class="v">${v}</span></button></li>`).join("");
+    const row = (w) => { const t = tot(w), ag = agentOf(w.agent);
+      return `<tr data-work="${w.key}" tabindex="0"><td class="ttl"><span><b>${esc(w.title)}</b><small>${esc(ag.name)}</small></span></td>
+        <td><span><span class="stg ${STG[w.stage][0]}">${STG[w.stage][1]}</span></span></td>
+        <td class="num"><span>${w.today.count}</span></td><td class="num"><span>${avgT(w)}</span></td><td class="num"><span>${t.n}</span></td>
+        <td class="num"><span>${pct(t.rework, t.n)}</span></td><td class="num"><span>${pct(t.error, t.n)}</span></td><td class="num"><span><b>${pct(t.pass, t.n)}</b></span></td>
+        <td><span>${gaugeHTML(w)}</span></td></tr>`; };
+    const sep = (txt) => `<tr class="sep"><td colspan="9">${txt}</td></tr>`;
+    $("wt-body").innerHTML = sep(`② 파일럿 검증 중 · ${pilots.length}종`) + pilots.map(row).join("")
+      + sep(`④ 독립 수행 · ${indeps.length}종 (샘플 검수로 계속 측정)`) + indeps.sort((a, b) => b.today.count - a.today.count).slice(0, S.showAllIndep ? 99 : 6).map(row).join("")
+      + (indeps.length > 6 ? `<tr class="more-row"><td colspan="9"><button type="button" data-more>${S.showAllIndep ? "접기" : `독립 수행 ${indeps.length - 6}종 더 보기`}</button></td></tr>` : "")
+      + sep(`① 구분만 완료 · ${BACKLOG.length}종 (파일럿 대기)`) + BACKLOG.map((b, k) => `<tr data-backlog="${k}" tabindex="0"><td class="ttl"><span><b>${esc(b.title)}</b><small>${esc(agentOf(b.agent).name)}</small></span></td><td><span><span class="stg backlog">① 구분 완료</span></span></td>${'<td class="num"><span>—</span></td>'.repeat(6)}<td><span><small class="muted">파일럿 대기</small></span></td></tr>`).join("");
+  }
+  function openWork(key, fromList) {
+    const w = S.work[key], t = tot(w), ag = agentOf(w.agent), ok = meets(w);
+    const cur = w.stage === "pilot" ? 2 : 4;
+    const items = S.items.filter((x) => x.key === key).slice().reverse();
+    $("dr-back").hidden = !fromList;
+    $("dr-body").innerHTML = `
+      <div class="dr-meta"><span>${esc(ag.name)}</span><span class="stg ${STG[w.stage][0]}">${STG[w.stage][1]}</span></div>
+      <h2>${esc(w.title)}</h2>
+      <ol class="steps4">${["구분", "현업 검증", "교육·피드백", "독립 수행"].map((x, k) => `<li class="${k + 1 < cur ? "done" : k + 1 === cur ? "cur" : ""}">${k + 1}. ${x}</li>`).join("")}</ol>
+      <div class="dr-stats"><div>독립 수행률<b>${pct(t.pass, t.n)}</b></div><div>재작업률<b>${pct(t.rework, t.n)}</b></div><div>오류율<b>${pct(t.error, t.n)}</b></div><div>평균 처리시간 (오늘)<b>${avgT(w)}</b></div></div>
+      <div class="dr-sec"><h4>검수 기록</h4><p>누적 ${t.n}건 (파일럿 시작 ${esc(w.cfg.since)} 이후, 예시 이력 포함) · 오늘 ${w.today.n}건 · 검수자 ${esc(w.cfg.reviewer)}</p></div>
+      ${w.stage === "pilot" ? `<div class="dr-sec"><h4>독립 수행 전환 기준</h4><ul class="crit">
+        <li class="${t.n >= CRIT.n ? "ok" : "no"}">${t.n >= CRIT.n ? "✓" : "○"} 검수 ${CRIT.n}건 이상 (현재 ${t.n}건)</li>
+        <li class="${t.n && t.rework / t.n <= CRIT.rework ? "ok" : "no"}">${t.n && t.rework / t.n <= CRIT.rework ? "✓" : "○"} 재작업 ${CRIT.rework * 100}% 이하 (현재 ${pct(t.rework, t.n)})</li>
+        <li class="${t.error <= CRIT.error ? "ok" : "no"}">${t.error <= CRIT.error ? "✓" : "○"} 오류 0건 (현재 ${t.error}건)</li></ul>
+        <p class="dr-note">${ok ? (w.promoAsked ? "기준을 충족해 컨트롤타워에 전환 결정을 요청했습니다." : "기준을 충족했습니다.") : "기준을 모두 충족하면 에이전트가 컨트롤타워에게 전환 결정을 요청합니다."}</p></div>`
+        : `<div class="dr-sec"><h4>독립 수행</h4><p>${esc(w.cfg.promoted)} 전환. 이후 ${SAMPLE * 100}% 샘플 검수로 계속 측정하고, 오류가 나오면 파일럿으로 되돌립니다.</p></div>`}
+      <div class="dr-sec"><h4>교육</h4><p>${esc(w.cfg.training)}</p></div>
+      <div class="dr-sec"><h4>피드백과 개선 이력</h4><ul class="fb">${w.fixes.map((f) => `<li>${esc(f)}</li>`).join("")}${w.feedback.slice().reverse().map((f) => `<li><small>${f.t} · ${esc(f.by)}</small><br>${esc(f.reason || "")} — ${esc(f.text)}</li>`).join("")}</ul></div>
+      <div class="dr-sec"><h4>오늘 처리한 건</h4>${items.length ? `<ul class="dr-list">${items.map((x) => rowHTML({ t: x.t, who: ag.name, text: x.text, tag: x.tag }, "data-item", S.items.indexOf(x))).join("")}</ul>` : `<p class="dr-note">아직 없습니다.</p>`}</div>`;
+    backTo = null;
+    openDrawer();
+  }
+  function openStage(kind) {
+    backTo = () => openStage(kind);
+    const W = Object.values(S.work);
+    const list = (arr) => `<ul class="dr-list">${arr.map((w) => `<li><button type="button" class="row" data-work="${w.key}"><span class="t"></span><span class="who">${esc(agentOf(w.agent).name)}</span><span>${esc(w.title)}</span><span class="stg ${STG[w.stage][0]}">${STG[w.stage][1]}</span></button></li>`).join("")}</ul>`;
+    let h = "";
+    if (kind === "stage1") {
+      h = `<h2>01 · 반복 업무와 판단 지점 구분</h2>
+        <div class="dr-sec"><h4>판단 지점 (항상 사람에게 올림)</h4><ul>${JUDGMENT.map(([a, b]) => `<li><b>${esc(a)}</b> — ${esc(b)}</li>`).join("")}</ul></div>
+        <div class="dr-sec"><h4>반복 업무 (에이전트 대상)</h4>${list(W)}</div>
+        <div class="dr-sec"><h4>구분만 완료</h4><ul>${BACKLOG.map((b) => `<li><b>${esc(b.title)}</b> — ${esc(b.note)}</li>`).join("")}</ul></div>`;
+    } else if (kind === "stage2") {
+      const P = W.filter((w) => w.stage === "pilot");
+      h = `<h2>02 · 현업과 소규모 검증</h2>
+        <div class="dr-sec"><p>새 업무는 결과를 현업 담당자가 모두 검수하는 파일럿으로 시작합니다. 검수 결과(그대로 승인 · 수정 후 승인 · 반려)가 곧 측정 데이터가 됩니다.</p></div>
+        <div class="dr-sec"><h4>파일럿 중인 업무</h4>${list(P)}</div>`;
+    } else if (kind === "stage3") {
+      const F = W.filter((w) => w.fixes.length && PILOT[w.key]);
+      h = `<h2>03 · 교육과 피드백으로 개선</h2>
+        <div class="dr-sec"><p>파일럿을 시작할 때 현업 검수자와 기준을 합의하고 사용법을 교육합니다. 검수에서 나온 수정·반려 사유는 에이전트 가이드에 반영되고, 가이드 버전이 올라갑니다.</p></div>
+        ${F.map((w) => `<div class="dr-sec"><h4>${esc(w.title)} · 가이드 v1.${w.guide}</h4><p class="dr-note" style="margin:0 0 6px">${esc(w.cfg.training)}</p><ul class="fb">${w.fixes.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></div>`).join("")}`;
+    } else {
+      const I = W.filter((w) => w.stage === "indep");
+      h = `<h2>04 · 측정과 독립 수행</h2>
+        <div class="dr-sec"><h4>측정 항목</h4><ul><li><b>처리시간</b> — 요청 접수부터 완료까지. 파일럿은 검수 대기 시간이 포함됩니다.</li><li><b>재작업률</b> — 검수에서 수정 후 승인된 비율</li><li><b>오류율</b> — 검수에서 반려된 비율</li><li><b>독립 수행률</b> — 검수에서 수정 없이 통과한 비율</li></ul></div>
+        <div class="dr-sec"><h4>전환 기준</h4><p>검수 ${CRIT.n}건 이상, 재작업 ${CRIT.rework * 100}% 이하, 오류 0건. 기준을 넘으면 에이전트가 전환을 요청하고 컨트롤타워가 결정합니다. 전환 후에도 ${SAMPLE * 100}% 샘플 검수로 계속 측정합니다.</p></div>
+        <div class="dr-sec"><h4>독립 수행 중인 업무</h4>${list(I)}</div>`;
+    }
+    $("dr-back").hidden = true;
+    $("dr-body").innerHTML = h;
+    openDrawer();
+  }
+  $("stages").addEventListener("click", (e) => { const b = e.target.closest("[data-open-stage]"); if (b) openStage(b.dataset.openStage); });
+  $("wt-body").addEventListener("click", (e) => {
+    if (e.target.closest("[data-more]")) { S.showAllIndep = !S.showAllIndep; renderWork(); return; }
+    const tr = e.target.closest("[data-work]"); if (tr) { openWork(tr.dataset.work, false); return; }
+    const bl = e.target.closest("[data-backlog]"); if (bl) { const b = BACKLOG[+bl.dataset.backlog]; backTo = null; $("dr-back").hidden = true;
+      $("dr-body").innerHTML = `<div class="dr-meta">${esc(agentOf(b.agent).name)} <span class="stg backlog">① 구분 완료</span></div><h2>${esc(b.title)}</h2><div class="dr-sec"><h4>구분 결과</h4><p>${esc(b.note)}</p></div><div class="dr-sec"><h4>다음 단계</h4><p>현업 검수자를 정하고 검수 기준을 합의한 뒤 파일럿을 시작합니다. 파일럿 동안은 모든 결과를 검수합니다.</p></div>`; openDrawer(); }
+  });
+  $("wt-body").addEventListener("keydown", (e) => { if (e.key === "Enter") { const tr = e.target.closest("tr"); if (tr) tr.click(); } });
+
+  function mailHTML(m, status, at) {
+    const st = {
+      auto: ["sent", "자동 발송됨 · 승인된 내부 템플릿"],
+      draft: ["draft", "초안 · 사람이 승인하기 전에는 보내지 않습니다"],
+      sent: ["sent", `발송됨 · ${at || ""} 사람 승인 후`],
+      held: ["held", "보내지 않음 · 보류 또는 반려"],
+      review: ["draft", "초안 · 현업 검수를 통과하면 발송합니다"],
+      redo: ["draft", "보내지 않음 · 다른 선택지라 초안 수정 후 재승인 필요"],
+    }[status];
+    return `<div class="mail">
+      <div class="mail-h"><div><span>보낸 사람</span>${FROM}</div><div><span>받는 사람</span>${esc(m.to)}</div><div><span>숨은참조</span>${AUDIT}</div><div><span>제목</span><b>${esc(m.subject)}</b></div></div>
+      <pre class="mail-b">${esc(m.body)}</pre>
+      <ul class="checks"><li>✓ 인적 정보 검사 통과 (본문·첨부)</li>${m.ext ? "<li>✓ 수신 도메인이 등록된 파트너 도메인</li>" : ""}<li>✓ 감사용 숨은참조 포함</li></ul>
+      <div class="mail-st ${st[0]}">${st[1]}</div></div>`;
+  }
+  // ───────── 상세 패널 ─────────
+  let resumeAfter = false, backTo = null, opener = null;
+  function openDrawer() {
+    if ($("drawer").hidden) { opener = document.activeElement; resumeAfter = playing; playing = false; }
+    $("dr-paused").hidden = !resumeAfter;
+    $("scrim").hidden = false; $("drawer").hidden = false;
+    $("dr-body").scrollTop = 0; $("dr-close").focus();
+  }
+  function closeDrawer(silent) {
+    if ($("drawer").hidden) return;
+    $("scrim").hidden = true; $("drawer").hidden = true;
+    if (!silent && resumeAfter) playing = true;
+    resumeAfter = false;
+    if (!silent && opener && opener.focus) opener.focus();
+  }
+  function openList(agentId) {
+    backTo = () => openList(agentId);
+    const items = S.items.filter((x) => !agentId || x.agent === agentId).slice().reverse();
+    const ag = agentId && agentOf(agentId);
+    const asks = DECISIONS.filter((d, i) => (!agentId || d.a === agentId) && i < S.next).length;
+    $("dr-back").hidden = true;
+    $("dr-body").innerHTML = `
+      <div class="dr-meta">${ag ? esc(ag.sub) + " · 파트너: " + esc(ag.partner) : "에이전트 5개 전체"}</div>
+      <h2>${ag ? esc(ag.name) : "에이전트가 처리한 업무"} · 오늘 ${items.length}건</h2>
+      <div class="dr-stats"><div>자동 처리<b>${items.length}건</b></div><div>사람에게 올린 결정<b>${asks}건</b></div></div>
+      ${items.length ? `<ul class="dr-list">${items.map((x, k) => rowHTML({ t: x.t, who: agentOf(x.agent).name, text: x.text, tag: x.tag }, "data-item", S.items.indexOf(x))).join("")}</ul>`
+        : `<p class="dr-note">아직 처리한 업무가 없습니다.</p>`}
+      <p class="dr-note">항목을 누르면 에이전트가 무엇을 참고해 어떻게 처리했는지 볼 수 있습니다.</p>`;
+    openDrawer();
+  }
+  function openItem(item, fromList) {
+    if (!item) return;
+    $("dr-back").hidden = !fromList;
+    if (item.type === "task") {
+      const d = item.def, ag = agentOf(item.agent);
+      $("dr-body").innerHTML = `
+        <div class="dr-meta"><span>${item.t}</span><span>·</span><span>${esc(ag.name)}</span><span class="tag ${item.tag[0]}">${item.tag[1]}</span></div>
+        <h2>${esc(item.text)}</h2>
+        <div class="dr-sec"><h4>에이전트가 한 일</h4><ol>${d.steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>
+        <div class="dr-sec"><h4>참고한 자료</h4><div class="srcs">${d.src.map((x) => `<span>${esc(x)}</span>`).join("")}</div></div>
+        <div class="dr-sec"><h4>결과</h4><p>${esc(d.out)}</p></div>
+        ${d.k === "p" ? `<div class="dr-sec"><h4>파트너</h4><p>${esc(ag.partner)}에 전달하거나 받은 내용을 처리했습니다.</p></div>` : ""}
+        ${d.k === "pii" ? `<div class="dr-sec"><h4>인적 정보</h4><p>원본은 보안 시트에만 저장했습니다. 이 화면과 로그에는 참조번호만 남습니다.</p></div>` : ""}
+        ${taskReviewHTML(item)}
+        ${d.mail ? `<div class="dr-sec"><h4>${item.reviewKind === "pilot" ? "메일" : "보낸 메일"}</h4>${mailHTML(d.mail, item.reviewKind === "pilot" ? (item.review === "pending" ? "review" : item.review === "error" ? "held" : "sent") : "auto", item.reviewedAt)}</div>` : ""}`;
+    } else {
+      const d = DECISIONS[item.di], ag = agentOf(d.a), o = (S.outcome || {})[item.di];
+      $("dr-body").innerHTML = `
+        <div class="dr-meta"><span>${hhmm(d.at)}</span><span>·</span><span>${esc(ag.name)}</span><span class="chip risk-${d.risk}">리스크 ${RISK[d.risk]}</span></div>
+        <h2>${esc(d.q)}</h2>
+        <div class="dr-sec"><h4>에이전트가 정리한 상황</h4><ul>${d.ctx.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
+        <div class="dr-sec"><h4>에이전트 추천</h4><p>${esc(d.rec)}</p></div>
+        <div class="dr-sec"><h4>사람에게 올린 이유</h4><div class="why ask">고용·보상·계약·외부 커뮤니케이션처럼 판단이 필요한 일은 에이전트가 결정하지 않습니다.</div></div>
+        <div class="dr-sec"><h4>선택지</h4><ul class="opts">${d.opts.map((x, k) => `<li class="${o && o.opt === k ? "chosen" : ""}"><span>${o && o.opt === k ? "✓ " : ""}${esc(x)}</span><small>${k === 0 ? "에이전트 추천" : ""}</small></li>`).join("")}<li class="${o && o.opt === -1 ? "held" : ""}"><span>${o && o.opt === -1 ? "✓ " : ""}보류</span><small></small></li></ul></div>
+        <div class="dr-sec"><h4>진행 기록</h4><ol class="tl">
+          <li class="t-ask"><span class="tt">${hhmm(d.at)}</span>${esc(ag.name)}가 사람에게 결정 요청</li>
+          ${o ? `<li class="t-ok"><span class="tt">${o.at}</span>${esc(o.by)}: "${esc(o.choice)}" (대기 ${o.waited}분)</li>
+            ${o.exec ? `<li class="t-ok"><span class="tt">${o.at}</span>실행: ${esc(o.exec)}</li>` : ""}
+            ${o.mail === "sent" ? `<li class="t-mail"><span class="tt">${o.at}</span>메일 발송 → ${esc(d.mail.to)}</li>` : o.mail === "redo" ? `<li class="t-wait"><span class="tt">${o.at}</span>메일 초안 수정 후 재승인 대기</li>` : `<li class="t-wait"><span class="tt">${o.at}</span>보류 · 실행과 메일 모두 진행하지 않음</li>`}`
+          : `<li class="t-wait"><span class="tt">${hhmm(S.t)}</span>결정 대기 중 (${Math.round(S.t - d.at)}분째)</li>`}
+        </ol></div>
+        ${o ? "" : `<div class="dr-sec"><h4>여기서 바로 결정</h4><div class="acts">${d.opts.map((x, k) => `<button type="button" class="${k === 0 ? "primary" : ""}" data-d="${item.di}" data-o="${k}">${esc(x)}</button>`).join("")}<button type="button" class="hold" data-d="${item.di}" data-o="-1">보류</button></div></div>`}
+        <div class="dr-sec"><h4>메일</h4>${mailHTML(d.mail, o ? o.mail : "draft", o && o.at)}</div>`;
+    }
+    openDrawer();
+  }
+  $("dr-body").addEventListener("click", (e) => {
+    const it = e.target.closest("[data-item]"); if (it) { openItem(S.items[+it.dataset.item], true); return; }
+    const dc = e.target.closest("[data-dec]"); if (dc) { openItem({ type: "decision", di: +dc.dataset.dec }, true); return; }
+    const mi = e.target.closest("[data-mail]"); if (mi) { openItem(S.mails[+mi.dataset.mail].item, true); return; }
+    const wk = e.target.closest("[data-work]"); if (wk) { openWork(wk.dataset.work, true); return; }
+    const rv = e.target.closest("[data-r]"); if (rv) { const i = +rv.dataset.r; review(i, rv.dataset.res, rv.dataset.reason || null); openItem(S.items[i], !$("dr-back").hidden); return; }
+    const b = e.target.closest("[data-d]");
+    if (b) { const di = +b.dataset.d; decide(di, +b.dataset.o); openItem({ type: "decision", di }, !$("dr-back").hidden); }
+  });
+  document.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openCollection(b.dataset.open)));
+  const DEC_TAG = (i) => { const o = (S.outcome || {})[i]; if (!o) return ["ask", "대기 중"]; if (o.opt === -1) return ["hold", "보류"]; return o.opt === 0 ? ["ok", "승인"] : ["ask", "다른 선택"]; };
+  function openCollection(kind) {
+    backTo = () => openCollection(kind);
+    let title, note, rows = "", stats = "";
+    if (kind === "decided" || kind === "waiting") {
+      const ids = kind === "waiting" ? S.waiting.map((w) => w.id) : Object.keys(S.outcome || {}).map(Number);
+      ids.sort((a, b) => b - a);
+      title = kind === "waiting" ? `결정 대기 · ${ids.length}건` : `사람의 결정 · 오늘 ${ids.length}건`;
+      const held = Object.values(S.outcome || {}).filter((o) => o.opt === -1).length;
+      stats = kind === "decided" ? `<div class="dr-stats"><div>승인<b>${ids.length - held}건</b></div><div>보류<b>${held}건</b></div></div>` : "";
+      rows = ids.map((i) => { const d = DECISIONS[i], o = (S.outcome || {})[i];
+        return rowHTML({ t: o ? o.at : hhmm(d.at), who: agentOf(d.a).name, text: d.q, tag: DEC_TAG(i) }, "data-dec", i); }).join("");
+      if (kind === "waiting") { title = `사람 확인 대기 · 결정 ${ids.length} · 검수 ${S.reviews.length}`;
+        rows += S.reviews.slice().reverse().map((it) => rowHTML({ t: it.t, who: agentOf(it.agent).name, text: it.text, tag: ["review", it.reviewKind === "pilot" ? "파일럿 검수" : "샘플 검수"] }, "data-item", S.items.indexOf(it))).join(""); }
+      note = kind === "waiting" ? "항목을 열어 이 패널에서 바로 결정할 수도 있습니다." : "항목을 누르면 에이전트가 올린 상황, 추천, 사람의 선택, 실행과 메일까지 볼 수 있습니다.";
+    } else if (kind === "stage1" || kind === "stage2" || kind === "stage3" || kind === "stage4") {
+      openStage(kind); return;
+    } else if (kind === "mail") {
+      title = `메일 발송 · 오늘 ${S.mails.length}건`;
+      stats = `<div class="dr-stats"><div>내부 자동<b>${S.mailIn}건</b></div><div>사람 승인 후<b>${S.mailOut}건</b></div></div>`;
+      rows = S.mails.map((m, k) => [m, k]).reverse().map(([m, k]) => rowHTML({ t: m.t, who: m.to, text: m.subject, tag: ["mail", "메일 · " + m.how] }, "data-mail", k)).join("");
+      note = "항목을 누르면 메일 전문과 발송 근거를 볼 수 있습니다.";
+    } else {
+      const items = S.items.filter((x) => x.def.k === "pii").reverse();
+      title = `인적 정보 분리 · 오늘 ${items.length}건`;
+      rows = items.map((x) => rowHTML({ t: x.t, who: agentOf(x.agent).name, text: x.text, tag: x.tag }, "data-item", S.items.indexOf(x))).join("");
+      note = "원본 값은 보안 시트에만 있고, 이 화면에는 어떤 항목을 분리했는지만 남습니다.";
+    }
+    $("dr-back").hidden = true;
+    $("dr-body").innerHTML = `<div class="dr-meta">오늘 누적 · ${hhmm(S.t)} 기준</div><h2>${title}</h2>${stats}
+      ${rows ? `<ul class="dr-list">${rows}</ul>` : `<p class="dr-note">아직 해당 항목이 없습니다.</p>`}<p class="dr-note">${note}</p>`;
+    openDrawer();
+  }
+  $("dr-back").addEventListener("click", () => backTo && backTo());
+  $("dr-close").addEventListener("click", () => closeDrawer());
+  $("scrim").addEventListener("click", () => closeDrawer());
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+  $("k-done-btn").addEventListener("click", () => openList(null));
+  $("inbox").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.openItem) { openItem(S.items[+b.dataset.openItem], false); return; }
+    if (b.dataset.r) { review(+b.dataset.r, b.dataset.res, b.dataset.reason || null); return; }
+    if (b.dataset.d) decide(+b.dataset.d, +b.dataset.o);
+  });
+
+  // ───────── 루프 ─────────
+  function frame(ts) {
+    const dtMs = Math.min(100, ts - (lastT || ts)); lastT = ts;
+    if (playing && !S.ended) {
+      acc += dtMs;
+      if (acc >= 250) { // 0.25초마다 시뮬레이션 1분(1배속)
+        const minutes = (acc / 250) * (fast ? 4 : 1); acc = 0;
+        const before = S.log.length ? S.log[0] : null;
+        step(minutes);
+        renderKpi(); renderHub();
+        if (S.log[0] !== before) renderLog();
+        if (S.workDirty) renderWork();
+        document.querySelectorAll("[data-wait]").forEach((el) => { const w = S.waiting.find((x) => x.id === +el.dataset.wait); if (w) el.textContent = `대기 ${Math.round(S.t - w.since)}분`; });
+      }
+    }
+    packets = packets.filter((p) => {
+      p.t += dtMs / p.dur;
+      const k = Math.min(1, p.t), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      p.c.setAttribute("cx", p.a.x + (p.b.x - p.a.x) * e); p.c.setAttribute("cy", p.a.y + (p.b.y - p.a.y) * e);
+      if (k >= 1) { p.c.remove(); p.done(); return false; }
+      return true;
+    });
+    requestAnimationFrame(frame);
+  }
+  $("play").addEventListener("click", () => { playing = !playing; $("play").textContent = playing ? "일시정지" : "재생"; $("play").setAttribute("aria-pressed", playing); });
+  $("speed").addEventListener("click", () => { fast = !fast; $("speed").setAttribute("aria-pressed", fast); });
+  $("restart").addEventListener("click", () => { reset(); });
+
+  buildHub();
+  reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
